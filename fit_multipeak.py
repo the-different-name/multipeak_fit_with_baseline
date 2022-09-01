@@ -8,7 +8,6 @@ Created on Mon May  2 19:28:52 2022
 
 import numpy as np
 from copy import deepcopy
-import sys
 from scipy.optimize import least_squares
 from scipy.signal import find_peaks
 from datetime import datetime
@@ -20,6 +19,9 @@ from pathlib import Path
 from scipy import signal
 from numpy.polynomial import Polynomial
 from numpy.polynomial.polynomial import polyval
+
+import warnings
+warnings.simplefilter('ignore',sparse.SparseEfficiencyWarning)
 
 from expspec import *
 from spectralfeature import voigt_asym, MultiPeak, CalcPeak
@@ -122,7 +124,7 @@ def read_startingpoint_from_txt(filename):
 
 
 
-def longpass_wavelet_filter(thespectrum, cutoff='auto', polyfy=False, display=2):
+def longpass_wavelet_filter(thespectrum, cutoff='auto', polyfy=False, display=1):
     """
     cutoff is in pixels.
     auto cutoff is 1/16 of the length
@@ -147,10 +149,14 @@ def longpass_wavelet_filter(thespectrum, cutoff='auto', polyfy=False, display=2)
     # coef, freqs=pywt.cwt(detrend(thespectrum), scalegrid_adv, 'mexh')
     coef = signal.cwt(thespectrum, signal.ricker, scalegrid_adv)
 
-    if display >1:
+    if display >0:
         theaspect = len(thespectrum)/len(scalegrid_adv)/1.875
-        plt.matshow(coef, cmap=plt.cm.nipy_spectral_r, aspect = theaspect)
-        plt.show()
+        #with plt.rc_context(rc={rc('font', size=SMALL_SIZE)}):
+        # with plt.rc('font', size=8):
+        with plt.rc_context(rc={'font.size': 7}):
+            plt.matshow(coef, cmap=plt.cm.nipy_spectral_r, aspect = theaspect)
+            plt.title('longpass wavelet filter', fontsize=8)
+            plt.show()
 
     # compute reconstruction range:
     cutoff_index = np.where(scalegrid_adv>=cutoff)[0][0]
@@ -164,9 +170,10 @@ def longpass_wavelet_filter(thespectrum, cutoff='auto', polyfy=False, display=2)
         thesp_polycoeff = Polynomial.fit(x, icwt_mh_reconstructed, 15)
         thesp_poly = polyval(x, thesp_polycoeff.coef)
 
-    if display >1:
+    if display >0:
         plt.plot(detrend(thespectrum), 'k', label='raw')
         plt.plot(icwt_mh_reconstructed, 'r', linewidth=2.5, label='low-pass filtered')
+        plt.title('longpass wavelet filter: estimate 4th derivative of BL', fontsize=10)
         if polyfy:
             plt.plot(thesp_poly, 'g', linewidth=1.5, label='polyfied')
         plt.legend()
@@ -175,7 +182,7 @@ def longpass_wavelet_filter(thespectrum, cutoff='auto', polyfy=False, display=2)
         F4_raw = (np.mean(np.diff(thespectrum, 4)**2))**0.5
         F4_filtered = (np.mean(np.diff(icwt_mh_reconstructed, 4)**2))**0.5
         F4_filtered_pol = (np.mean(np.diff(thesp_poly, 4)**2))**0.5
-        print('rms 4th derivatives: \n raw {:.2e}, \n wavelet-filtered {:.2e},\n wavelet-filtered with polyfit {:.2e}'.format(F4_raw, F4_filtered, F4_filtered_pol))
+        print('rms 4th derivatives: \n raw = {:.2e}, \n wavelet-filtered = {:.2e},\n wavelet-filtered with polyfit = {:.2e}'.format(F4_raw, F4_filtered, F4_filtered_pol))
         smoothline = thesp_poly
         F4 = F4_filtered_pol
     if not polyfy:
@@ -226,9 +233,9 @@ def auto_lambda(rawspectrum, fwhm_to_pixelwidth_ratio='auto', f4th_derivative='w
         F4, _ = longpass_wavelet_filter(rawspectrum, polyfy=True)
         f4th_derivative = F4
         print('4th derivative estimated from wavelet reconstruction')
-        print('4th derivative ={:.2e}'.format(F4))
+        print(' 4th derivative = {:.2e}'.format(F4))
     else:
-        print('4th derivative of baseline from input = {:.3e}', f4th_derivative)
+        print(' 4th derivative of baseline from input = {:.3e}', f4th_derivative)
 
     # 0: find sigma_rm
     sigma0 = morphological_noise(rawspectrum)
@@ -281,6 +288,7 @@ def find_da_peaks(derspec, signal2noise=5, display=0):
     if display > 0:
         plt.plot(derspec.x, derspec.y, 'k')
         plt.plot(derspec.x[peak_indexes], derspec.y[peak_indexes], 'o', mfc='none', ms = 8, mec='r')
+        plt.title('peak detection by morphological algorithm', fontsize=10)
         plt.show()
     
     return derspec.x[peak_indexes]
@@ -347,6 +355,7 @@ def multipeak_fit(derspec,
         startingpoint[:,0] = peak_positions
     elif type(startingpoint)==str:
         print('startingpoint file = {}, reading from file'.format(startingpoint))
+        startingpoint = read_startingpoint_from_txt(startingpoint)
     else:
         print('startingpoint from input')
 
@@ -506,7 +515,7 @@ def multipeak_fit(derspec,
                          linewidth=1.5)
             # plt.tick_params(labelleft=False)
             # plt.grid(False)
-            # plt.title('lam = {:.2e}'.format(als_lambda))
+            # plt.title('lam = {:.2e}'.format(als_lambda), fontsize=10)
             plt.xlabel(x_axis_title)
             plt.ylabel(y_axis_title)
             if labels_on_plot:
@@ -551,7 +560,7 @@ def multipeak_fit(derspec,
 
 
 def write_startingpoint_to_file(startingpoint, filename='auto_generated_startingpoint.txt'):
-    with open(filename, 'w') as the_file:
+    with open(filename, 'w', encoding='utf-8') as the_file:
         startingpoint_header = ' # auto-generated startingpoint \n'
         startingpoint_header +=  '# nan (not-a-number) are okay here \n'
         startingpoint_header += '# positions' + 23*' '
@@ -609,6 +618,8 @@ def find_startingpoint_for_fit_with_baseline(derspec, fitrange=None):
     startingpoint[:,12] = dermultipeak.specs_array[:,4]
 
     write_startingpoint_to_file(startingpoint)
+    
+    return startingpoint
         
     
 
@@ -646,9 +657,14 @@ def multipeak_fit_with_BL(derspec,
     elif type(startingpoint)==str:
         if display > 0:
             print('startingpoint file = {}, reading from file'.format(startingpoint))
+        startingpoint = read_startingpoint_from_txt(startingpoint)
     else:
         if display > 0:
             print('startingpoint from input array')
+
+    # @Test&Debug: 
+        # optional: write current starting point to file
+    write_startingpoint_to_file(startingpoint, filename='current_startingpoint.txt')
 
     number_of_peaks = np.shape(startingpoint)[0]
     bounds_high = startingpoint[:, 2::3]
@@ -821,7 +837,7 @@ def multipeak_fit_with_BL(derspec,
                                      startingpoint1D,
                                      bounds=[bounds_low1D, bounds_high1D],
                                      verbose=display,
-                                     max_nfev=1024)
+                                     max_nfev=8)
             # final evaluation of 'find_baseline_and_amplitudes'
             #   to make sure that the optimized parameters are written to the results:
             optimized_norm_of_deviation = find_baseline_and_amplitudes(solution.x)
@@ -863,7 +879,7 @@ def multipeak_fit_with_BL(derspec,
                          linewidth=1)
             # plt.tick_params(labelleft=False)
             # plt.grid(False)
-            plt.title('lam = {:.2e}'.format(als_lambda))
+            plt.title('multipeak fit,  ' + r'$\lambda$' + ' = {:.2e}'.format(als_lambda), fontsize=10)
             plt.xlabel(x_axis_title)
             plt.ylabel(y_axis_title)
             if labels_on_plot:
@@ -917,7 +933,23 @@ def multipeak_fit_with_BL(derspec,
 
 if __name__ == '__main__':
 
+    # s = read_startingpoint_from_txt('test_spectrum_startingpoint.txt')
+    # current_spectrum = np.genfromtxt('test_data_experimental_spectrum.txt') # read file to numpy format
+    # testspec = ExpSpec(current_spectrum[:,0], current_spectrum[:,1]) # convert the spectrum to an *object* of a specific format.        
+    
+    # dat_result = multipeak_fit_with_BL(testspec,
+    #                           fitrange=(500, 3700),
+    #                           startingpoint='test_spectrum_startingpoint.txt',
+    #                           als_lambda = 2e10,
+    #                           saveresults=True, display=2)
+
+
+
+
+
+
     # 1) generate test spectrum:
+    print('''let's generate a test spectrum with two Lor functions, sine-like baseline and random noise''')
     number_of_points = 1025
     wavenumber = np.linspace(0, 1024, num=number_of_points)
     Lorentz_positions = (384, 1008)
@@ -927,18 +959,14 @@ if __name__ == '__main__':
     random_noise = 2*np.random.uniform(-1, 1, len(wavenumber))
     lor_func_0 = amplitudes0[0] * voigt_asym(wavenumber-Lorentz_positions[0], Lorentz_FWHMs[0], 0, 0)
     lor_func_1 = amplitudes0[1] * voigt_asym(wavenumber-Lorentz_positions[1], Lorentz_FWHMs[1], 0, 0)
-    lor_funcs = lor_func_0 + lor_func_1
+    lor_funcs = lor_func_0 + lor_func_1 + 10
 
     full_f = synthetic_bl+random_noise+lor_funcs
     
     testspec = ExpSpec(wavenumber, full_f)
 
-    # find_da_peaks(testspec, signal2noise=5, display=1)
 
-    # full_f_4detection = full_f-moving_average_molification(full_f, number_of_molifications=16)
-    # testspec_4d = ExpSpec(wavenumber, full_f_4detection)
-    # k = multipeak_fit(testspec_4d)
-
-#    find_startingpoint_for_fit_with_baseline(testspec)
-    k = multipeak_fit(testspec)
-    l = multipeak_fit_with_BL(testspec)
+    # 2) fit it
+    print('''let's fit it''')
+    l = multipeak_fit_with_BL(testspec, saveresults=True)
+    
