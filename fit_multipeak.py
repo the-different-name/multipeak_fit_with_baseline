@@ -1005,12 +1005,12 @@ if __name__ == '__main__':
 
     # 2) fit it
     print('''let's fit it''')
-    l = multipeak_fit_with_BL(testspec, saveresults=True, remove_offset=False) #, als_lambda=2e6)
-    l = multipeak_fit_with_BL(testspec, saveresults=True, remove_offset=True) #, als_lambda=2e6)
+    # l = multipeak_fit_with_BL(testspec, saveresults=True, remove_offset=False) #, als_lambda=2e6)
+    # l = multipeak_fit_with_BL(testspec, saveresults=True, remove_offset=True) #, als_lambda=2e6)
 
-    full_f = synthetic_bl+random_noise+lor_funcs + 10
-    testspec = ExpSpec(wavenumber, full_f)
+    # full_f = synthetic_bl+random_noise+lor_funcs + 10
+    # testspec = ExpSpec(wavenumber, full_f)
 
-    l = multipeak_fit_with_BL(testspec, saveresults=True, remove_offset=False) #, als_lambda=2e6)
+    # l = multipeak_fit_with_BL(testspec, saveresults=True, remove_offset=False) #, als_lambda=2e6)
     l = multipeak_fit_with_BL(testspec, saveresults=True, remove_offset=True) #, als_lambda=2e6)
     
