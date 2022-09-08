@@ -17,8 +17,7 @@ from scipy import sparse
 from scipy.sparse.linalg import spsolve
 from pathlib import Path
 from scipy import signal
-from numpy.polynomial import Polynomial
-from numpy.polynomial.polynomial import polyval
+from numpy.polynomial.polynomial import polyfit, polyval
 
 import warnings
 warnings.simplefilter('ignore',sparse.SparseEfficiencyWarning)
@@ -28,6 +27,35 @@ from spectralfeature import voigt_asym, MultiPeak, CalcPeak
 import matplotlib.pyplot as plt
 
 plt.style.use('ggplot')
+
+
+def detrend_BL(y, number_of_points = 'auto', parabolic=True, display=0):
+    """
+    auto-number-of-points means 1/16th of the interval
+        (number of points should be either 'auto' or integer, e.g. 10)
+    """
+    x = np.linspace(-1, 1, num=len(y))
+    
+    if number_of_points=='auto':
+        number_of_points = int(np.round(len(y)/16))
+    y_masked = np.concatenate((y[0:number_of_points], y[-number_of_points:]))
+    x_masked = np.concatenate((x[0:number_of_points], x[-number_of_points:]))
+    if parabolic:
+        poly_degree = 2
+    else:
+        poly_degree = 1
+    thesp_polycoeff = polyfit(x_masked, y_masked, poly_degree)
+    
+    offset = polyval(x, thesp_polycoeff)
+    if display > 0:
+        plt.plot(x, offset, 'r')
+        plt.plot(x_masked, y_masked, 'o', mfc='none', ms = 6, mec='k')
+        plt.plot(x[number_of_points:-number_of_points], y[number_of_points:-number_of_points], 'o', mfc='none', ms = 4, mec='0.4')
+        plt.title('@ pre-processing: detrending it', fontsize=10)
+        plt.show()
+
+    return offset
+
 
 
 def read_startingpoint_from_txt(filename):
@@ -167,11 +195,12 @@ def longpass_wavelet_filter(thespectrum, cutoff='auto', polyfy=False, display=1)
 
     if polyfy:
         x = np.linspace(-1, 1, num=len(thespectrum))
-        thesp_polycoeff = Polynomial.fit(x, icwt_mh_reconstructed, 15)
-        thesp_poly = polyval(x, thesp_polycoeff.coef)
+        thesp_polycoeff = polyfit(x, icwt_mh_reconstructed, 15)
+        thesp_poly = polyval(x, thesp_polycoeff)
 
     if display >0:
-        plt.plot(detrend(thespectrum), 'k', label='raw')
+        # plt.plot(detrend(thespectrum), 'k', label='raw')
+        plt.plot(thespectrum, 'k', label='raw')
         plt.plot(icwt_mh_reconstructed, 'r', linewidth=2.5, label='low-pass filtered')
         plt.title('longpass wavelet filter: estimate 4th derivative of BL', fontsize=10)
         if polyfy:
@@ -635,7 +664,8 @@ def multipeak_fit_with_BL(derspec,
                           y_axis_title = 'intensity',
                           supress_negative_peaks = False,
                           labels_on_plot = True,
-                          onlyLor = False):
+                          onlyLor = False,
+                          remove_offset = True):
     """ 
      fitrange: (x1, x2) is the fitting range
      Display:    0 for nothing,
@@ -746,6 +776,13 @@ def multipeak_fit_with_BL(derspec,
     dermultipeak.specs_array[:,4] = 1
 
 
+    # detrend it by end-points, since the code below assumes that at the end points the BL is zero
+    # linear_trend = np.linspace(derspec.y[0], derspec.y[-1], len(derspec.y))
+    if remove_offset:
+        offset = detrend_BL(derspec.y, display=display)
+    else:
+        offset = np.zeros_like(derspec.y)
+
     # Achtung ! !  !    
     current_multipeak = MultiPeak(derspec.x, number_of_peaks)
     
@@ -766,7 +803,7 @@ def multipeak_fit_with_BL(derspec,
     D = sparse.vstack([D, np.zeros((number_of_peaks, L+number_of_peaks))])
     D = sparse.csr_matrix(D)
     b_vector = np.zeros(L+number_of_peaks)
-    b_vector[0:L] = derspec.y   
+    b_vector[0:L] = derspec.y - offset
     
 
     def find_baseline_and_amplitudes(peakparams, display=2):
@@ -791,10 +828,10 @@ def multipeak_fit_with_BL(derspec,
             D[0:L, L+current_peak] = np.reshape(peak_shapes[:, current_peak], (L, 1))
             D[L+current_peak, 0:L] = np.reshape(peak_shapes[:, current_peak], (1, L))
             
-            b_vector[L+current_peak] = np.sum(derspec.y*peak_shapes[:,current_peak])
+            b_vector[L+current_peak] = np.sum((derspec.y - offset)*peak_shapes[:,current_peak])
     
         full_solution = spsolve(D, b_vector)
-        current_multipeak.baseline = full_solution[0:L]
+        current_multipeak.baseline = full_solution[0:L] + offset
         # what should be the amplitudes here???
         the_amplitudes = full_solution[L:] # **2 # * peak_fwhms
 
@@ -815,7 +852,7 @@ def multipeak_fit_with_BL(derspec,
         current_multipeak.specs_array[:,4] = the_amplitudes
 
         norm_of_deviation = np.sum( (np.matmul(D2.toarray(), current_multipeak.baseline))**2 * als_lambda +
-                                    (derspec.y -
+                                    (derspec.y - 
                                     current_multipeak.baseline -
                                     current_multipeak.curve)**2 )
 
@@ -837,7 +874,7 @@ def multipeak_fit_with_BL(derspec,
                                      startingpoint1D,
                                      bounds=[bounds_low1D, bounds_high1D],
                                      verbose=display,
-                                     max_nfev=8)
+                                     max_nfev=1024) # 1024
             # final evaluation of 'find_baseline_and_amplitudes'
             #   to make sure that the optimized parameters are written to the results:
             optimized_norm_of_deviation = find_baseline_and_amplitudes(solution.x)
@@ -931,6 +968,7 @@ def multipeak_fit_with_BL(derspec,
 
 
 
+
 if __name__ == '__main__':
 
     # s = read_startingpoint_from_txt('test_spectrum_startingpoint.txt')
@@ -952,21 +990,27 @@ if __name__ == '__main__':
     print('''let's generate a test spectrum with two Lor functions, sine-like baseline and random noise''')
     number_of_points = 1025
     wavenumber = np.linspace(0, 1024, num=number_of_points)
-    Lorentz_positions = (384, 1008)
+    Lorentz_positions = (384, 720)
     Lorentz_FWHMs = (32, 64)
     amplitudes0 = (128*2, 128*8)
     synthetic_bl = 2*np.sin(np.pi * wavenumber/256)
     random_noise = 2*np.random.uniform(-1, 1, len(wavenumber))
     lor_func_0 = amplitudes0[0] * voigt_asym(wavenumber-Lorentz_positions[0], Lorentz_FWHMs[0], 0, 0)
     lor_func_1 = amplitudes0[1] * voigt_asym(wavenumber-Lorentz_positions[1], Lorentz_FWHMs[1], 0, 0)
-    lor_funcs = lor_func_0 + lor_func_1 + 10
+    lor_funcs = lor_func_0 + lor_func_1
 
-    full_f = synthetic_bl+random_noise+lor_funcs
-    
+
+    full_f = synthetic_bl+random_noise+lor_funcs + 0
     testspec = ExpSpec(wavenumber, full_f)
-
 
     # 2) fit it
     print('''let's fit it''')
-    l = multipeak_fit_with_BL(testspec, saveresults=True)
+    l = multipeak_fit_with_BL(testspec, saveresults=True, remove_offset=False) #, als_lambda=2e6)
+    l = multipeak_fit_with_BL(testspec, saveresults=True, remove_offset=True) #, als_lambda=2e6)
+
+    full_f = synthetic_bl+random_noise+lor_funcs + 10
+    testspec = ExpSpec(wavenumber, full_f)
+
+    l = multipeak_fit_with_BL(testspec, saveresults=True, remove_offset=False) #, als_lambda=2e6)
+    l = multipeak_fit_with_BL(testspec, saveresults=True, remove_offset=True) #, als_lambda=2e6)
     

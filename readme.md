@@ -14,21 +14,21 @@ We intend to find the baseline and the peak parameters. We don't know the shape 
 
 
 ## Structure:
-**fit_multipeak.py ** -- this is the main file. Just run it for the illustration.
+```fit_multipeak.py``` -- this is the main file. Just run it for the illustration.
 
-Typically, if you have your test spectrum as numpy-readable x-y file (a txt file with two columns separated with tabs or spaces), you could use the following example:
-'''python
+Typically, if you have your test spectrum as *numpy-readable* *x-y* file (a text file with two columns separated with tabs or spaces), you could use the following example:
+```python
 from fit_multipeak import * # load the script
 current_spectrum = np.genfromtxt('my_spectrum.txt') # read file to numpy format
 testspec = ExpSpec(current_spectrum[:,0], current_spectrum[:,1]) # convert the spectrum to an *object* of a specific format.
 _ = multipeak_fit_with_BL(testspec, saveresults = True) # fit it! The starting point will be generated automatically from *find_da_peaks* function.
-'''
+```
 
 The example above is a basic usage. You can set the starting point for the fit, specify the fitting range, control the display options etc.
 
 
 
-'''python
+```python
 from fit_multipeak import * # load the script
 _ = multipeak_fit_with_BL(testspec, fitrange=(500, 3700), startingpoint='test_spectrum_startingpoint.txt', saveresults=True)
-'''
+```
