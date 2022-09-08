@@ -25,10 +25,15 @@ _ = multipeak_fit_with_BL(testspec, saveresults = True) # fit it! The starting p
 ```
 
 The example above is a basic usage. You can set the starting point for the fit, specify the fitting range, control the display options etc.
-
-
-
+There is a test spectrum and an example file for the starting point. You can try the following:
 ```python
 from fit_multipeak import * # load the script
-_ = multipeak_fit_with_BL(testspec, fitrange=(500, 3700), startingpoint='test_spectrum_startingpoint.txt', saveresults=True)
+s = read_startingpoint_from_txt('test_spectrum_startingpoint.txt')
+current_spectrum = np.genfromtxt('test_data_experimental_spectrum.txt') # read file to numpy format
+testspec = ExpSpec(current_spectrum[:,0], current_spectrum[:,1]) # convert the spectrum to an *object* of a specific format.
+dat_result = multipeak_fit_with_BL(testspec,
+                         fitrange=(500, 3700),
+                         startingpoint='test_spectrum_startingpoint.txt',
+                         als_lambda = 6e7,
+                         saveresults=True, display=2)
 ```

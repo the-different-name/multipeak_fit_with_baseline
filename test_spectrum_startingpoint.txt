@@ -1,0 +1,7 @@
+# manual startingpoint 
+# nan (not-a-number) are okay here 
+# positions                        fwhms                            asyms                           Gauss_shares                  amplitudes                    
+ 1358     ( 1340   ,  1370  )      90     (   60   ,   180   )      0.00  (     nan,      nan)      0.50  (     nan,      nan)  0         (     nan,      nan)  
+ 1600     ( 1580   ,  1620  )      80     (   40   ,   120   )      0.00  (     nan,      nan)      0.50  (     nan,      nan)  0         (     nan,      nan)  
+ 3240     ( 3180   ,  3300  )     100     (   80   ,   220   )      0.00  (     nan,      nan)      0.50  (     nan,      nan)  0         (     nan,      nan)  
+ 3440     ( 3380   ,  3460  )     100     (   80   ,   220   )      0.00  (     nan,      nan)      0.50  (     nan,      nan)  0         (     nan,      nan)  

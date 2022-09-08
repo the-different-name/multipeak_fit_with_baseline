@@ -21,6 +21,7 @@ from numpy.polynomial.polynomial import polyfit, polyval
 
 import warnings
 warnings.simplefilter('ignore',sparse.SparseEfficiencyWarning)
+warnings.simplefilter(action='ignore', category=FutureWarning)
 
 from expspec import *
 from spectralfeature import voigt_asym, MultiPeak, CalcPeak
@@ -158,7 +159,8 @@ def longpass_wavelet_filter(thespectrum, cutoff='auto', polyfy=False, display=1)
     auto cutoff is 1/16 of the length
     returns 4th derivative and smooth line
     """
-
+    
+    thespectrum = detrend(thespectrum)
     if cutoff=='auto':
         cutoff = int(len(thespectrum)/16)
     if display > 1:
@@ -977,8 +979,8 @@ if __name__ == '__main__':
     
     # dat_result = multipeak_fit_with_BL(testspec,
     #                           fitrange=(500, 3700),
-    #                           startingpoint='test_spectrum_startingpoint.txt',
-    #                           als_lambda = 2e10,
+    #                             startingpoint='test_spectrum_startingpoint.txt',
+    #                             als_lambda = 6e7,
     #                           saveresults=True, display=2)
 
 
