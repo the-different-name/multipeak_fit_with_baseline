@@ -16,6 +16,11 @@ We intend to find the baseline and the peak parameters. We don't know the shape 
 ## Structure:
 ```fit_multipeak.py``` -- this is the main file. Just run it for the illustration.
 
+```expspec.py``` -- spectral class format, some supplementary function - probably you don't want to look at it.
+
+```spectralfeature.py``` -- format of the 'multi-peak'. The peak shape is defined here, see "Asymmetric pseudo-Voigt funtion".
+
+
 Typically, if you have your test spectrum as *numpy-readable* *x-y* file (a text file with two columns separated with tabs or spaces), you could use the following example:
 ```python
 from fit_multipeak import * # load the script
