@@ -23,35 +23,50 @@ import warnings
 warnings.simplefilter('ignore',sparse.SparseEfficiencyWarning)
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
-from expspec import *
-from spectralfeature import voigt_asym, MultiPeak, CalcPeak
+import matplotlib as mpl
+mpl.rcParams['figure.dpi'] = 300
+mpl.rcParams['figure.figsize'] = [6.0, 3.2]
 import matplotlib.pyplot as plt
-
 plt.style.use('ggplot')
 
+from expspec import *
+from spectralfeature import voigt_asym, MultiPeak, CalcPeak
 
-def detrend_BL(y, number_of_points = 'auto', parabolic=True, display=0):
+
+def detrend_BL(y, number_of_points='auto', parabolic=True, display=1):
     """
-    auto-number-of-points means 1/16th of the interval
+    Compute a linear offset for the baseline.
+        We need the baseline to be ~0 at both endpoints.
+    Parameter:
+        auto-number-of-points means 1/16th of the interval
         (number of points should be either 'auto' or integer, e.g. 10)
     """
-    x = np.linspace(-1, 1, num=len(y))
-    
+
     if number_of_points=='auto':
         number_of_points = int(np.round(len(y)/16))
-    y_masked = np.concatenate((y[0:number_of_points], y[-number_of_points:]))
-    x_masked = np.concatenate((x[0:number_of_points], x[-number_of_points:]))
+    x = np.linspace(-1, 1, num=number_of_points)
+    y1_masked = y[0:number_of_points]
+    y2_masked = y[-number_of_points:]
+
     if parabolic:
         poly_degree = 2
     else:
         poly_degree = 1
-    thesp_polycoeff = polyfit(x_masked, y_masked, poly_degree)
+    thesp_polycoeff1 = polyfit(x, y1_masked, poly_degree)
+    thesp_polycoeff2 = polyfit(x, y2_masked, poly_degree)
+    endpoint1y = polyval(x[0], thesp_polycoeff1)
+    endpoint2y = polyval(x[-1], thesp_polycoeff2)
     
-    offset = polyval(x, thesp_polycoeff)
+    # linear offset with 2 endpoints:
+    offset = np.linspace(-1, 1, num=len(y)) * (endpoint2y-endpoint1y)/2 + (endpoint2y+endpoint1y)/2
+    
     if display > 0:
-        plt.plot(x, offset, 'r')
+        x0 = np.linspace(-1, 1, num=len(y))
+        y_masked = np.concatenate((y[0:number_of_points], y[-number_of_points:]))
+        x_masked = np.concatenate((x0[0:number_of_points], x0[-number_of_points:])) 
+        plt.plot(np.linspace(-1, 1, num=len(y)), offset, 'r')
         plt.plot(x_masked, y_masked, 'o', mfc='none', ms = 6, mec='k')
-        plt.plot(x[number_of_points:-number_of_points], y[number_of_points:-number_of_points], 'o', mfc='none', ms = 4, mec='0.4')
+        plt.plot(x0[number_of_points:-number_of_points], y[number_of_points:-number_of_points], 'o', mfc='none', ms = 4, mec='0.4')
         plt.title('@ pre-processing: detrending it', fontsize=10)
         plt.show()
 
@@ -1000,9 +1015,15 @@ if __name__ == '__main__':
     lor_func_0 = amplitudes0[0] * voigt_asym(wavenumber-Lorentz_positions[0], Lorentz_FWHMs[0], 0, 0)
     lor_func_1 = amplitudes0[1] * voigt_asym(wavenumber-Lorentz_positions[1], Lorentz_FWHMs[1], 0, 0)
     lor_funcs = lor_func_0 + lor_func_1
+    offset = np.zeros_like(wavenumber)
+    
+    # optional: add linear offset:
+    # y1 = 8; y2 = -16
+    # offset = np.linspace(-1, 1, num=number_of_points) * (y2-y1)/2 + (y2+y1)/2
 
-
-    full_f = synthetic_bl+random_noise+lor_funcs + 0
+    # join baseline, noise, Lor functions and linear offset into the synthetic spectrum:
+    full_f = synthetic_bl+random_noise+lor_funcs + offset
+    # format it to an "ExpSpec" class:
     testspec = ExpSpec(wavenumber, full_f)
 
     # 2) fit it
