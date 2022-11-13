@@ -553,7 +553,7 @@ def multipeak_fit(derspec,
                 plt.legend()
             if saveresults:
                now = datetime.now()
-               filename = 'figures/' + filenameprefix + '_multipeak_conv_' + now.strftime("%H%M%S") + '.png'
+               filename = filenameprefix + '_multipeak_conv_' + now.strftime("%H%M%S") + '.png'
                plt.savefig('fit_results/pic/' + filename, bbox_inches='tight', transparent=True)
             plt.show()
 
