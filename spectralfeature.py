@@ -24,7 +24,7 @@ class SpectralFeature (Peak) :
      For MultiPeak there are not BL slope and BL offset, but instead there is an optional baseline
     """
 
-    def __init__(self, specs_array = None) :
+    def __init__(self, spec_array, specs_array=None):
         self.specs_array = np.zeros(7)
         self.specs_array[1] = 1 # set default fwhm to 1. Otherwise we can get division by 0
         super.__init__(specs_array)

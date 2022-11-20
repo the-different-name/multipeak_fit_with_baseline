@@ -1,4 +1,6 @@
-from spectralfeature import SpectralFeature
+import numpy as np
+
+from spectralfeature import SpectralFeature, voigt_asym
 from enum import Enum
 
 class Peak:
@@ -13,52 +15,48 @@ class CalcCustomPeak:
 
 
 class CalcSpecPeak:
-    def __init__(self, featurePeak: SpectralFeature):
+    def __init__(self, featurePeak: SpectralFeature, wn=np.linspace(0, 1, 129)):
         self.featurePeak = featurePeak
+        self.wn = wn
 
     @property
     def peak_area(self):
         peak_area = (1 - self.featurePeak.specs_array[3]) * self.featurePeak.specs_array[4] * (
-                    1 + 0.69 * self.featurePeak.specs_array[2] ** 2 + 1.35 * self.featurePeak.specs_array[2] ** 4) + self.specs_array[3] * \
-                    self.featurePeak.specs_array[4] * (1 + 0.67 * self.featurePeak.specs_array[2] ** 2 + 3.43 * self.specs_array[2] ** 4)
+                    1 + 0.69 * self.featurePeak.specs_array[2] ** 2 + 1.35 * self.featurePeak.specs_array[2] ** 4) + self.featurePeak.specs_array[3] * \
+                    self.featurePeak.specs_array[4] * (1 + 0.67 * self.featurePeak.specs_array[2] ** 2 + 3.43 * self.featurePeak.specs_array[2] ** 4)
         return peak_area
 
     @property
     def peak_height(self):
-        amplitudes_L = self.specs_array[4] * 2 / (np.pi * self.specs_array[1])
-        amplitudes_G = self.specs_array[4] * (4 * np.log(2) / np.pi) ** 0.5 / self.specs_array[1]
-        peak_height = self.specs_array[3] * amplitudes_G + (1 - self.specs_array[3]) * amplitudes_L
+        amplitudes_L = self.featurePeak.specs_array[4] * 2 / (np.pi * self.featurePeak.specs_array[1])
+        amplitudes_G = self.featurePeak.specs_array[4] * (4 * np.log(2) / np.pi) ** 0.5 / self.featurePeak.specs_array[1]
+        peak_height = self.featurePeak.specs_array[3] * amplitudes_G + (1 - self.featurePeak.specs_array[3]) * amplitudes_L
         return peak_height
 
     @peak_height.setter
     def peak_height(self, newheight):
         self.featurePeak.specs_array[4] = newheight / (
-                self.specs_array[3] * (4 * np.log(2) / np.pi) ** 0.5 / self.specs_array[1] + (
-                    1 - self.specs_array[3]) * 2 / (np.pi * self.specs_array[1])
+                self.featurePeak.specs_array[3] * (4 * np.log(2) / np.pi) ** 0.5 / self.featurePeak.specs_array[1] + (
+                    1 - self.featurePeak.specs_array[3]) * 2 / (np.pi * self.featurePeak.specs_array[1])
         )
 
     @property
     def fwhm_asym(self):
         """ real fwhm of an asymmetric peak"""
-        if self.get_peak_type() == "Lorenzial":
-            """"""
-        elif self.get_peak_type() == "Gaus":
-
-
-        fwhm_asym = self.fwhm * (1 + 0.4 * self.asymmetry ** 2 + 1.35 * self.asymmetry ** 4)
+        fwhm_asym = self.featurePeak.fwhm * (1 + 0.4 * self.featurePeak.asymmetry ** 2 + 1.35 * self.featurePeak.asymmetry ** 4)
         return fwhm_asym
 
     @property
     def curve(self):
         """ Asymmetric pseudo-Voigt funtion as defined in Analyst: 10.1039/C8AN00710A
         """
-        curve = self.specs_array[4] * voigt_asym(self.wn - self.specs_array[0], self.specs_array[1],
-                                                 self.specs_array[2], self.specs_array[3])
+        curve = self.featurePeak.specs_array[4] * voigt_asym(self.wn - self.featurePeak.specs_array[0], self.featurePeak.specs_array[1],
+                                                 self.featurePeak.specs_array[2], self.featurePeak.specs_array[3])
         return curve
 
     @property
     def curve_with_BL(self):
-        curve_with_BL = self.curve + self.specs_array[5] * (self.wn - self.specs_array[0]) + self.specs_array[6]
+        curve_with_BL = self.curve + self.featurePeak.specs_array[5] * (self.wn - self.featurePeak.specs_array[0]) + self.featurePeak.specs_array[6]
         return curve_with_BL
 
     @property
