@@ -7,7 +7,7 @@ Created on Fri Dec 27 12:32:24 2019
 
 import numpy as np
 
-from newcalc_peak import Peak, PeakType
+from newcalc_peak import Peak, PeakType, PeakFactory
 
 
 class SpectralFeature (Peak) :
@@ -183,15 +183,30 @@ class MultiPeak ():
 
     def __init__(self, wn=np.linspace(0, 1, 129), number_of_peaks=1) :
         self.specs_array = np.zeros((number_of_peaks, 5))
+        self.peaks_array = []
         self.specs_array[:, 1] = 1 # set default fwhm to 1. Otherwise we can get division by 0
         self.specs_array[:, 0] = (wn[-1]-wn[0])/2
         self.wn = wn
         self.number_of_peaks = number_of_peaks
         self.baseline = np.zeros_like(wn)
-        
+
+    @classmethod
+    def init_peak(self, peak_spec_array):
+        factory = PeakFactory()
+        factory.get_peak(peak_spec_array)
+
+    @property
+    def peaks_array(self):
+        return self.specs_array
+
+    @peaks_array.setter
+    def peaks_array(self, peaks_array):
+        self.peaks_array = peaks_array
+
     @property
     def position(self):
         return self.specs_array[:, 0]
+
     @position.setter
     def position (self, position) :
         self.specs_array[:, 0] = position
