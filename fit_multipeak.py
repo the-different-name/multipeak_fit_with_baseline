@@ -696,7 +696,7 @@ def multipeak_fit_with_BL(derspec,
     original_working_range = derspec.working_range
 
     # step 0: load startingpoint and check it
-    if startingpoint=='auto_generate':
+    if startingpoint =='auto_generate':
         # generate from find_peaks !!
         peak_positions = find_da_peaks(derspec, display=display)
         startingpoint = np.full((np.shape(peak_positions)[0], 15), np.nan)

@@ -7,7 +7,10 @@ Created on Fri Dec 27 12:32:24 2019
 
 import numpy as np
 
-class SpectralFeature () :
+from newcalc_peak import Peak, PeakType
+
+
+class SpectralFeature (Peak) :
     """ Abstract spectral feature, with no x-axis defined
      Order of parameters in array:
      0:    x0 (default 0)
@@ -21,13 +24,19 @@ class SpectralFeature () :
      For MultiPeak there are not BL slope and BL offset, but instead there is an optional baseline
     """
 
-    def __init__(self) :
+    def __init__(self, specs_array = None) :
         self.specs_array = np.zeros(7)
         self.specs_array[1] = 1 # set default fwhm to 1. Otherwise we can get division by 0
+        super.__init__(specs_array)
+
+    @property
+    def get_peak_type(self):
+        return PeakType.get_peak_type(self.specs_array[0])
 
     @property
     def position(self):
         return self.specs_array[0]
+
     @position.setter
     def position (self, position) :
         self.specs_array[0] = position
@@ -35,6 +44,7 @@ class SpectralFeature () :
     @property
     def fwhm(self):
         return self.specs_array[1]
+
     @fwhm.setter
     def fwhm (self, fwhm) :
         self.specs_array[1] = fwhm
@@ -42,6 +52,7 @@ class SpectralFeature () :
     @property
     def asymmetry(self):
         return self.specs_array[2]
+
     @asymmetry.setter
     def asymmetry (self, asymmetry) :
         self.specs_array[2] = asymmetry
@@ -49,6 +60,7 @@ class SpectralFeature () :
     @property
     def Gaussian_share(self):
         return self.specs_array[3]
+
     @Gaussian_share.setter
     def Gaussian_share (self, Gaussian_share) :
         self.specs_array[3] = Gaussian_share
@@ -56,6 +68,7 @@ class SpectralFeature () :
     @property
     def voigt_amplitude(self):
         return self.specs_array[4]
+
     @voigt_amplitude.setter
     def voigt_amplitude (self, voigt_amplitude) :
         self.specs_array[4] = voigt_amplitude
@@ -63,6 +76,7 @@ class SpectralFeature () :
     @property
     def BL_slope(self):
         return self.specs_array[5]
+
     @BL_slope.setter
     def BL_slope (self, BL_slope) :
         self.specs_array[5] = BL_slope
@@ -70,6 +84,7 @@ class SpectralFeature () :
     @property
     def BL_offset(self):
         return self.specs_array[6]
+
     @BL_offset.setter
     def BL_offset (self, BL_offset) :
         self.specs_array[6] = BL_offset
@@ -100,6 +115,7 @@ class CalcPeak (SpectralFeature) :
         amplitudes_G = self.specs_array[4]*(4*np.log(2)/np.pi)**0.5 / self.specs_array[1]
         peak_height = self.specs_array[3] * amplitudes_G + (1-self.specs_array[3]) * amplitudes_L
         return peak_height
+
     @peak_height.setter
     def peak_height(self, newheight):
         self.specs_array[4] = newheight / (

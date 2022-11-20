@@ -22,7 +22,7 @@ from copy import deepcopy
 mpl.rcParams['figure.dpi'] = 300 # default resolution of the plot
 
 
-class ExpSpec ():
+class ExpSpec:
     def __init__(self, full_x, full_y) :
         self.full_x = full_x
         self.full_y = full_y
@@ -33,6 +33,7 @@ class ExpSpec ():
     @property
     def working_range(self):
         return self.xrange
+
     @working_range.setter
     def working_range(self, xrange):
         self.xrange = (np.maximum(np.min(xrange), np.min(self.full_x)), np.minimum(np.max(xrange), np.max(self.full_x)))
