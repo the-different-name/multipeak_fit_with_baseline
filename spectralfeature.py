@@ -183,7 +183,7 @@ class MultiPeak ():
 
     def __init__(self, wn=np.linspace(0, 1, 129), number_of_peaks=1) :
         self.specs_array = np.zeros((number_of_peaks, 5))
-        self.peaks_array = []
+        self.peaks_list = []
         self.specs_array[:, 1] = 1 # set default fwhm to 1. Otherwise we can get division by 0
         self.specs_array[:, 0] = (wn[-1]-wn[0])/2
         self.wn = wn
@@ -193,15 +193,15 @@ class MultiPeak ():
     @classmethod
     def init_peak(self, peak_spec_array):
         factory = PeakFactory()
-        factory.get_peak(peak_spec_array)
+        self.peaks_list = self.peaks_list + [factory.get_peak(peak_spec_array)]
 
     @property
-    def peaks_array(self):
-        return self.specs_array
+    def peaks_list(self) -> list:
+        return self.peaks_list
 
-    @peaks_array.setter
-    def peaks_array(self, peaks_array):
-        self.peaks_array = peaks_array
+    @peaks_list.setter
+    def peaks_list(self, peaks_list):
+        self.peaks_list = peaks_list
 
     @property
     def position(self):
