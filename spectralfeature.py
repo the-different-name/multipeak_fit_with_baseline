@@ -171,7 +171,12 @@ class MultiPeak ():
         self.specs_array[:, 0] = (wn[-1]-wn[0])/2
         self.wn = wn
         self.number_of_peaks = number_of_peaks
-        self.baseline = np.zeros_like(wn)
+        self.linear_baseline_scalarpart = np.zeros_like(wn)
+        self.linear_baseline_slopepart = np.zeros_like(wn)
+        # self.baseline = np.zeros_like(wn)
+        self.d2baseline = np.zeros_like(wn)
+        # self.linear_baseline_offset = 0
+        # self.linear_baseline_slope = 0
         
     @property
     def position(self):
@@ -229,9 +234,34 @@ class MultiPeak ():
         """ real fwhm of an asymmetric peak"""
         fwhm_asym = self.fwhm * (1 + 0.4*self.asymmetry**2 + 1.35*self.asymmetry**4)
         return fwhm_asym
+
+    # def linear_baseline_slopepart(self):
+    #     """ Returns part of linear baseline.
+    #     Coefficients are defined in terms of centered x-axis with unit span.
+    #     """
+    #     wn_center = (self.wn[0] + self.wn[-1])/2
+    #     linear_baseline_slopepart = self.linear_baseline_slope * (self.wn - wn_center) / abs(self.wn[0] - self.wn[-1])
+    #     return linear_baseline_slopepart
+    
+    # def linear_baseline_scalarpart(self):
+    #     """ Returns part of linear baseline.
+    #     Coefficients are defined in terms of centered x-axis with unit span.
+    #     """
+    #     return self.linear_baseline_offset
+
+    @property
+    def linear_baseline(self):
+        """ Returns linear baseline.
+        Coefficients are defined in terms of centered x-axis with unit span.
+        """
+        return self.linear_baseline_scalarpart + self.linear_baseline_slopepart
     
     @property
-    def curve (self) :
+    def baseline(self):
+        return self.linear_baseline + self.d2baseline
+
+    @property
+    def curve(self):
         """ Asymmetric pseudo-Voigt funtion as defined in Analyst: 10.1039/C8AN00710A
         """
         curve = np.zeros((len(self.wn), self.number_of_peaks))
@@ -239,6 +269,8 @@ class MultiPeak ():
             curve[:,i] = self.voigt_amplitude[i] * voigt_asym(self.wn-self.position[i], self.fwhm[i], self.asymmetry[i], self.Gaussian_share[i])
         curve = np.sum(curve, axis=1)
         return curve
+
+
 
     @property
     def multicurve (self) :
@@ -261,7 +293,6 @@ class MultiPeak ():
                    fmt='% .7e',
                    header = the_header)
     
-
     def write_decomposition_to_txt(self, exp_y='zero', filename='current_decomp.txt'):
         # save decomposition to txt
         the_header = '' 

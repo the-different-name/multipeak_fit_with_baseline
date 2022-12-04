@@ -33,47 +33,6 @@ from expspec import *
 from spectralfeature import voigt_asym, MultiPeak, CalcPeak
 
 
-def detrend_BL(y, number_of_points='auto', parabolic=True, display=1):
-    """
-    Compute a linear offset for the baseline.
-        We need the baseline to be ~0 at both endpoints.
-    Parameter:
-        auto-number-of-points means 1/16th of the interval
-        (number of points should be either 'auto' or integer, e.g. 10)
-    """
-
-    if number_of_points=='auto':
-        number_of_points = int(np.round(len(y)/16))
-    x = np.linspace(-1, 1, num=number_of_points)
-    y1_masked = y[0:number_of_points]
-    y2_masked = y[-number_of_points:]
-
-    if parabolic:
-        poly_degree = 2
-    else:
-        poly_degree = 1
-    thesp_polycoeff1 = polyfit(x, y1_masked, poly_degree)
-    thesp_polycoeff2 = polyfit(x, y2_masked, poly_degree)
-    endpoint1y = polyval(x[0], thesp_polycoeff1)
-    endpoint2y = polyval(x[-1], thesp_polycoeff2)
-    
-    # linear offset with 2 endpoints:
-    offset = np.linspace(-1, 1, num=len(y)) * (endpoint2y-endpoint1y)/2 + (endpoint2y+endpoint1y)/2
-    
-    if display > 0:
-        x0 = np.linspace(-1, 1, num=len(y))
-        y_masked = np.concatenate((y[0:number_of_points], y[-number_of_points:]))
-        x_masked = np.concatenate((x0[0:number_of_points], x0[-number_of_points:])) 
-        plt.plot(np.linspace(-1, 1, num=len(y)), offset, 'r')
-        plt.plot(x_masked, y_masked, 'o', mfc='none', ms = 6, mec='k')
-        plt.plot(x0[number_of_points:-number_of_points], y[number_of_points:-number_of_points], 'o', mfc='none', ms = 4, mec='0.4')
-        plt.title('@ pre-processing: detrending it', fontsize=10)
-        plt.show()
-
-    return offset
-
-
-
 def read_startingpoint_from_txt(filename):
     """ ???
     """
@@ -681,8 +640,7 @@ def multipeak_fit_with_BL(derspec,
                           y_axis_title = 'intensity',
                           supress_negative_peaks = False,
                           labels_on_plot = True,
-                          onlyLor = False,
-                          remove_offset = True):
+                          onlyLor = False):
     """ 
      fitrange: (x1, x2) is the fitting range
      Display:    0 for nothing,
@@ -793,12 +751,12 @@ def multipeak_fit_with_BL(derspec,
     dermultipeak.specs_array[:,4] = 1
 
 
-    # detrend it by end-points, since the code below assumes that at the end points the BL is zero
-    # linear_trend = np.linspace(derspec.y[0], derspec.y[-1], len(derspec.y))
-    if remove_offset:
-        offset = detrend_BL(derspec.y, display=display)
-    else:
-        offset = np.zeros_like(derspec.y)
+    # # detrend it by end-points, since the code below assumes that at the end points the BL is zero
+    # # linear_trend = np.linspace(derspec.y[0], derspec.y[-1], len(derspec.y))
+    # if remove_offset:
+    #     offset = detrend_BL(derspec.y, display=display)
+    # else:
+    #     offset = np.zeros_like(derspec.y)
 
     # Achtung ! !  !    
     current_multipeak = MultiPeak(derspec.x, number_of_peaks)
@@ -816,11 +774,11 @@ def multipeak_fit_with_BL(derspec,
     w = np.ones(L)
     W = sparse.spdiags(w, 0, L, L)
     D += W
-    D = sparse.hstack([D, np.zeros((L, number_of_peaks))])
-    D = sparse.vstack([D, np.zeros((number_of_peaks, L+number_of_peaks))])
+    D = sparse.hstack([D, np.zeros((L, number_of_peaks+2))])
+    D = sparse.vstack([D, np.zeros((number_of_peaks+2, L+number_of_peaks+2))])
     D = sparse.csr_matrix(D)
-    b_vector = np.zeros(L+number_of_peaks)
-    b_vector[0:L] = derspec.y - offset
+    b_vector = np.zeros(L+number_of_peaks+2)
+    b_vector[0:L] = derspec.y
     
 
     def find_baseline_and_amplitudes(peakparams, display=2):
@@ -829,13 +787,20 @@ def multipeak_fit_with_BL(derspec,
         current_multipeak.specs_array[:,0:4] = np.reshape(peakparams, (number_of_peaks, 4))
         current_multipeak.specs_array[:,4] = 1 # set amplitudes to 1 to find them later !
         peak_shapes = current_multipeak.multicurve
-
+        
+        # add linear offset here:
+        current_multipeak.linear_baseline_scalarpart = np.ones_like(derspec.y) / len(derspec.y)
+        current_multipeak.linear_baseline_slopepart = np.linspace(-1, 1, len(derspec.y)) / len(derspec.y)
+        # np.ones_like(derspec.y)
+        peak_shapes = np.column_stack((peak_shapes , current_multipeak.linear_baseline_scalarpart))
+        peak_shapes = np.column_stack((peak_shapes , current_multipeak.linear_baseline_slopepart))
+        
         # now set the values for the last rows and columns
-        for current_peak in np.arange(number_of_peaks):
+        for current_peak in np.arange(number_of_peaks+2):
             # construct it for off-diagonal also:
             # off-diagonal terms should be like
                 # L1*L2 (scalar multiplication)
-            for current_peak_2 in np.arange(number_of_peaks):
+            for current_peak_2 in np.arange(number_of_peaks+2):
                 D[L+current_peak, L+current_peak_2] = np.sum(peak_shapes[:, current_peak] *
                                                              peak_shapes[:, current_peak_2])
             # achtung: these lines sometimes don't work:
@@ -845,12 +810,14 @@ def multipeak_fit_with_BL(derspec,
             D[0:L, L+current_peak] = np.reshape(peak_shapes[:, current_peak], (L, 1))
             D[L+current_peak, 0:L] = np.reshape(peak_shapes[:, current_peak], (1, L))
             
-            b_vector[L+current_peak] = np.sum((derspec.y - offset)*peak_shapes[:,current_peak])
+            b_vector[L+current_peak] = np.sum((derspec.y)*peak_shapes[:,current_peak])
     
         full_solution = spsolve(D, b_vector)
-        current_multipeak.baseline = full_solution[0:L] + offset
+        current_multipeak.d2baseline = full_solution[0:L]
         # what should be the amplitudes here???
-        the_amplitudes = full_solution[L:] # **2 # * peak_fwhms
+        the_amplitudes = full_solution[L:-2] # **2 # * peak_fwhms
+        current_multipeak.linear_baseline_scalarpart *= full_solution[-2]
+        current_multipeak.linear_baseline_slopepart *= full_solution[-1]
 
         #@Test&Debug # we can plot at each iteration:        
         # if display>1:
@@ -858,19 +825,21 @@ def multipeak_fit_with_BL(derspec,
         #     cycol = cycle(color_list)
     
         #     plt.plot(derspec.x, derspec.y, 'o', mfc='none', ms = 4, mec=(0.1, 0.1, 0.1, 0.5),
-        #              label='raw data')
-        #     plt.plot(derspec.x, current_multipeak.baseline, color=next(cycol), label='baseline')
+        #               label='raw data')
+        #     plt.plot(derspec.x, current_multipeak.baseline,
+        #              color=next(cycol), label='baseline')
         #     for current_peak in np.arange(number_of_peaks):
         #         plt.plot(derspec.x, current_multipeak.baseline + current_multipeak.multicurve[:,current_peak],
-        #                  ':', color=next(cycol), label='BL+peak '+str(current_peak))
+        #                   ':', color=next(cycol), label='BL+peak '+str(current_peak))
         #     plt.legend()
         #     plt.show()
         
         current_multipeak.specs_array[:,4] = the_amplitudes
 
-        norm_of_deviation = np.sum( (np.matmul(D2.toarray(), current_multipeak.baseline))**2 * als_lambda +
+        norm_of_deviation = np.sum( (np.matmul(D2.toarray(), current_multipeak.d2baseline))**2 * als_lambda +
                                     (derspec.y - 
-                                    current_multipeak.baseline -
+                                    current_multipeak.d2baseline -
+                                    current_multipeak.linear_baseline -
                                     current_multipeak.curve)**2 )
 
         if supress_negative_peaks:
@@ -886,6 +855,12 @@ def multipeak_fit_with_BL(derspec,
         startingpoint1D = np.reshape(startingpoint, 4*number_of_peaks)
         bounds_low1D = np.reshape(bounds_low, 4*number_of_peaks)
         bounds_high1D = np.reshape(bounds_high, 4*number_of_peaks)
+        
+        # add the linear offset:
+        # startingpoint1D = np.append(startingpoint1D, [1, 1])
+        # bounds_low1D = np.append(bounds_low1D, [-np.inf, -np.inf])
+        # bounds_high1D = np.append(bounds_high1D, [np.inf, np.inf])
+        
         try:
             solution = least_squares(find_baseline_and_amplitudes,
                                      startingpoint1D,
@@ -898,6 +873,7 @@ def multipeak_fit_with_BL(derspec,
             if display > 1:
                 print('optimized_norm_of_deviation = ', optimized_norm_of_deviation)
             
+            converged_linear_offset = current_multipeak.linear_baseline
             converged_parameters = np.reshape(solution.x, (number_of_peaks, 4))
             # dermultipeak.specs_array[:,0:4] = converged_parameters
             # dermultipeak.specs_array[:,4] = current_multipeak.specs_array[:,4]
@@ -924,10 +900,10 @@ def multipeak_fit_with_BL(derspec,
             cycol = cycle(color_list)
             plt.plot(derspec.x, derspec.y, 'o', mfc='none', ms = 4, mec=(0.1, 0.1, 0.1, 0.5),
                      label='raw data')
-            plt.plot(dermultipeak.wn, current_multipeak.baseline + dermultipeak.curve,
+            plt.plot(dermultipeak.wn, dermultipeak.d2baseline + dermultipeak.curve + dermultipeak.linear_baseline,
                      color=next(cycol), label='fit envelope', linewidth=2);
             for current_peak in range(number_of_peaks):
-                plt.plot(dermultipeak.wn, current_multipeak.baseline + dermultipeak.multicurve[:,current_peak],
+                plt.plot(dermultipeak.wn, dermultipeak.d2baseline + dermultipeak.linear_baseline + dermultipeak.multicurve[:,current_peak],
                          ':', color=next(cycol),
                          label='peak at {:.1f}'.format(dermultipeak.specs_array[current_peak,0]),
                          linewidth=1)
@@ -1018,8 +994,8 @@ if __name__ == '__main__':
     offset = np.zeros_like(wavenumber)
     
     # optional: add linear offset:
-    # y1 = 8; y2 = -16
-    # offset = np.linspace(-1, 1, num=number_of_points) * (y2-y1)/2 + (y2+y1)/2
+    y1 = 8; y2 = -16
+    offset = np.linspace(-1, 1, num=number_of_points) * (y2-y1)/2 + (y2+y1)/2
 
     # join baseline, noise, Lor functions and linear offset into the synthetic spectrum:
     full_f = synthetic_bl+random_noise+lor_funcs + offset
@@ -1035,5 +1011,5 @@ if __name__ == '__main__':
     # testspec = ExpSpec(wavenumber, full_f)
 
     # l = multipeak_fit_with_BL(testspec, saveresults=True, remove_offset=False) #, als_lambda=2e6)
-    l = multipeak_fit_with_BL(testspec, saveresults=True, remove_offset=True) #, als_lambda=2e6)
+    l = multipeak_fit_with_BL(testspec, saveresults=False) #, als_lambda=2e6)
     
