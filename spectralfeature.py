@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-Created on Fri Dec 27 12:32:24 2019
+Created
 
-@author: научный рабочий
+научный рабочий
 """
 
 import numpy as np

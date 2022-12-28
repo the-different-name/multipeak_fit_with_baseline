@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Mon May  2 19:28:52 2022
+Created
 
-@author: korepashki
+научный рабочий
 """
 
 import numpy as np
 from copy import deepcopy
-from scipy.optimize import least_squares
+from scipy.optimize import least_squares, minimize, Bounds
 from scipy.signal import find_peaks
 from datetime import datetime
 import colorsys
@@ -647,7 +647,7 @@ def multipeak_fit_with_BL(derspec,
                  1 to save the figure of fit results + final print-out
                  2 for test-and-debug
      Returns:
-                derspec: class expspec
+                derspec: class multipeak
      """
 
     # capture the original working range, which has to be restored later:
@@ -856,17 +856,14 @@ def multipeak_fit_with_BL(derspec,
         bounds_low1D = np.reshape(bounds_low, 4*number_of_peaks)
         bounds_high1D = np.reshape(bounds_high, 4*number_of_peaks)
         
-        # add the linear offset:
-        # startingpoint1D = np.append(startingpoint1D, [1, 1])
-        # bounds_low1D = np.append(bounds_low1D, [-np.inf, -np.inf])
-        # bounds_high1D = np.append(bounds_high1D, [np.inf, np.inf])
-        
         try:
-            solution = least_squares(find_baseline_and_amplitudes,
-                                     startingpoint1D,
-                                     bounds=[bounds_low1D, bounds_high1D],
-                                     verbose=display,
-                                     max_nfev=1024) # 1024
+            solution = minimize(find_baseline_and_amplitudes,
+                        startingpoint1D,
+                        method = 'L-BFGS-B',
+                        bounds=Bounds(bounds_low1D, bounds_high1D),
+                        # options={'disp':2}
+                        )
+
             # final evaluation of 'find_baseline_and_amplitudes'
             #   to make sure that the optimized parameters are written to the results:
             optimized_norm_of_deviation = find_baseline_and_amplitudes(solution.x)
@@ -875,8 +872,6 @@ def multipeak_fit_with_BL(derspec,
             
             converged_linear_offset = current_multipeak.linear_baseline
             converged_parameters = np.reshape(solution.x, (number_of_peaks, 4))
-            # dermultipeak.specs_array[:,0:4] = converged_parameters
-            # dermultipeak.specs_array[:,4] = current_multipeak.specs_array[:,4]
             dermultipeak = current_multipeak
             #     #@Test&Debug #
             if display > 1:
