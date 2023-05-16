@@ -361,6 +361,7 @@ def multipeak_fit(derspec,
     elif type(startingpoint)==str:
         print('startingpoint file = {}, reading from file'.format(startingpoint))
         startingpoint = read_startingpoint_from_txt(startingpoint)
+        print('(nan okay here)')
     else:
         print('startingpoint from input')
 
@@ -663,6 +664,7 @@ def multipeak_fit_with_BL(derspec,
         if display > 0:
             print('startingpoint file = {}, reading from file'.format(startingpoint))
         startingpoint = read_startingpoint_from_txt(startingpoint)
+        print('(nan okay here)')
     else:
         if display > 0:
             print('startingpoint from input array')
@@ -858,8 +860,8 @@ def multipeak_fit_with_BL(derspec,
                                  'gtol': 4e-05,
                                  'eps': 1e-07,
                                  'maxiter':128,
-                                  'maxfun':4096,
-                                 'iprint':8,
+                                 'maxfun':4096,
+                                 # 'iprint':8,
                                  'maxls':16}
                         # options={'disp':2}
                         )
@@ -992,55 +994,55 @@ def multipeak_fit_with_BL(derspec,
 
 if __name__ == '__main__':
 
-    s = read_startingpoint_from_txt('test_spectrum_startingpoint.txt')
-    current_spectrum = np.genfromtxt('test_data_experimental_spectrum.txt') # read file to numpy format
-    testspec = ExpSpec(current_spectrum[:,0], current_spectrum[:,1]) # convert the spectrum to an *object* of a specific format.        
+    # s = read_startingpoint_from_txt('test_spectrum_startingpoint.txt')
+    # current_spectrum = np.genfromtxt('test_data_experimental_spectrum.txt') # read file to numpy format
+    # testspec = ExpSpec(current_spectrum[:,0], current_spectrum[:,1]) # convert the spectrum to an *object* of a specific format.        
     
-    dat_result = multipeak_fit_with_BL(testspec,
-                              fitrange=(500, 3700),
-                              startingpoint='test_spectrum_startingpoint.txt',
-                              the_lambda = 1e8, # 6e7
-                              saveresults=True,
-                              display=2,
-                              apply_corrections=True,)
+    # dat_result = multipeak_fit_with_BL(testspec,
+    #                           fitrange=(500, 3700),
+    #                           startingpoint='test_spectrum_startingpoint.txt',
+    #                           the_lambda = 1e8, # 6e7
+    #                           saveresults=True,
+    #                           display=2,
+    #                           apply_corrections=False,)
 
 
 
 
 
 
-    # # 1) generate test spectrum:
-    # print('''let's generate a test spectrum with two Lor functions, sine-like baseline and random noise''')
-    # number_of_points = 1025
-    # wavenumber = np.linspace(0, 1024, num=number_of_points)
-    # Lorentz_positions = (384, 720)
-    # Lorentz_FWHMs = (32, 64)
-    # amplitudes0 = (128*2, 128*8)
-    # synthetic_bl = 2*np.sin(np.pi * wavenumber/256)
-    # random_noise = 2*np.random.uniform(-1, 1, len(wavenumber))
-    # lor_func_0 = amplitudes0[0] * voigt_asym(wavenumber-Lorentz_positions[0], Lorentz_FWHMs[0], 0, 0)
-    # lor_func_1 = amplitudes0[1] * voigt_asym(wavenumber-Lorentz_positions[1], Lorentz_FWHMs[1], 0, 0)
-    # lor_funcs = lor_func_0 + lor_func_1
-    # offset = np.zeros_like(wavenumber)
+    # 1) generate test spectrum:
+    print('''let's generate a test spectrum with two Lor functions, sine-like baseline and random noise''')
+    number_of_points = 1025
+    wavenumber = np.linspace(0, 1024, num=number_of_points)
+    Lorentz_positions = (384, 720)
+    Lorentz_FWHMs = (32, 64)
+    amplitudes0 = (128*2, 128*8)
+    synthetic_bl = 2*np.sin(np.pi * wavenumber/256)
+    random_noise = 2*np.random.uniform(-1, 1, len(wavenumber))
+    lor_func_0 = amplitudes0[0] * voigt_asym(wavenumber-Lorentz_positions[0], Lorentz_FWHMs[0], 0, 0)
+    lor_func_1 = amplitudes0[1] * voigt_asym(wavenumber-Lorentz_positions[1], Lorentz_FWHMs[1], 0, 0)
+    lor_funcs = lor_func_0 + lor_func_1
+    offset = np.zeros_like(wavenumber)
     
-    # # optional: add linear offset:
-    # y1 = 8; y2 = -16
-    # offset = np.linspace(-1, 1, num=number_of_points) * (y2-y1)/2 + (y2+y1)/2
+    # optional: add linear offset:
+    y1 = 8; y2 = -16
+    offset = np.linspace(-1, 1, num=number_of_points) * (y2-y1)/2 + (y2+y1)/2
 
-    # # join baseline, noise, Lor functions and linear offset into the synthetic spectrum:
-    # full_f = synthetic_bl+random_noise+lor_funcs + offset
-    # # format it to an "ExpSpec" class:
+    # join baseline, noise, Lor functions and linear offset into the synthetic spectrum:
+    full_f = synthetic_bl+random_noise+lor_funcs + offset
+    # format it to an "ExpSpec" class:
+    testspec = ExpSpec(wavenumber, full_f)
+
+    # 2) fit it
+    print('''let's fit it''')
+    # l = multipeak_fit_with_BL(testspec, saveresults=True, remove_offset=False) #, the_lambda=2e6)
+    # l = multipeak_fit_with_BL(testspec, saveresults=True, remove_offset=True) #, the_lambda=2e6)
+
+    # full_f = synthetic_bl+random_noise+lor_funcs + 10
     # testspec = ExpSpec(wavenumber, full_f)
 
-    # # 2) fit it
-    # print('''let's fit it''')
-    # # l = multipeak_fit_with_BL(testspec, saveresults=True, remove_offset=False) #, the_lambda=2e6)
-    # # l = multipeak_fit_with_BL(testspec, saveresults=True, remove_offset=True) #, the_lambda=2e6)
-
-    # # full_f = synthetic_bl+random_noise+lor_funcs + 10
-    # # testspec = ExpSpec(wavenumber, full_f)
-
-    # # l = multipeak_fit_with_BL(testspec, saveresults=True, remove_offset=False) #, the_lambda=2e6)
+    # l = multipeak_fit_with_BL(testspec, saveresults=True, remove_offset=False) #, the_lambda=2e6)
     
-    # l = multipeak_fit_with_BL(testspec, saveresults=False, apply_corrections=True, the_lambda=2e6)
+    l = multipeak_fit_with_BL(testspec, saveresults=False, apply_corrections=True, the_lambda=2e6)
     
