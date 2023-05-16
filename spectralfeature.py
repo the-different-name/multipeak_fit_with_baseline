@@ -6,6 +6,10 @@ Created
 """
 
 import numpy as np
+from scipy.integrate import quad, dblquad
+from copy import deepcopy
+from scipy import sparse
+from scipy.sparse.linalg import spsolve
 
 class SpectralFeature () :
     """ Abstract spectral feature, with no x-axis defined
@@ -165,11 +169,12 @@ class MultiPeak ():
         Changing height changes area while keeps fwhm.
     """
 
-    def __init__(self, wn=np.linspace(0, 1, 129), number_of_peaks=1) :
+    def __init__(self, wn=np.linspace(0, 1, 129), number_of_peaks=1, lam=1e5) :
         self.specs_array = np.zeros((number_of_peaks, 5))
         self.specs_array[:, 1] = 1 # set default fwhm to 1. Otherwise we can get division by 0
         self.specs_array[:, 0] = (wn[-1]-wn[0])/2
         self.wn = wn
+        self.lam = lam
         self.number_of_peaks = number_of_peaks
         self.linear_baseline_scalarpart = np.zeros_like(wn)
         self.linear_baseline_slopepart = np.zeros_like(wn)
@@ -271,7 +276,6 @@ class MultiPeak ():
         return curve
 
 
-
     @property
     def multicurve (self) :
         """ array of curves
@@ -280,6 +284,7 @@ class MultiPeak ():
         for i in range(self.number_of_peaks):
             multicurve[:,i] = self.voigt_amplitude[i] * voigt_asym(self.wn-self.position[i], self.fwhm[i], self.asymmetry[i], self.Gaussian_share[i])
         return multicurve
+
 
     def save_specs_array_to_txt(self, filename='current_peakparams.txt'):
         col1 = 'position'
@@ -292,6 +297,7 @@ class MultiPeak ():
                    self.specs_array,
                    fmt='% .7e',
                    header = the_header)
+
     
     def write_decomposition_to_txt(self, exp_y='zero', filename='current_decomp.txt'):
         # save decomposition to txt
@@ -313,3 +319,147 @@ class MultiPeak ():
                    fmt='% .17e',
                    header = the_header)
 
+    
+    def construct_alpha_matrix(self):
+        alpha_matrix = np.zeros((np.shape(self.specs_array)[0], np.shape(self.specs_array)[1],
+                                 np.shape(self.specs_array)[0], np.shape(self.specs_array)[1]))
+        
+        S = sparse.diags([1,-2,1],[-1,0,1], shape=(len(self.wn),len(self.wn)))
+        w = np.ones(len(self.wn))
+        W = sparse.spdiags(w, 0, len(self.wn), len(self.wn)) # diagonal 1-matrix
+        
+        LSS1 = S.dot(S.transpose()) * self.lam + W
+
+        F_derivatives_array = self.construct_derivatives_over_params()
+        
+        X_vectors_array = np.zeros(( len(self.wn), np.shape(self.specs_array)[0], np.shape(self.specs_array)[1] ))
+        for i in range(self.number_of_peaks):
+             for j in range(np.shape(self.specs_array)[1]):
+                 # G_vectors_array[:, i, j] = np.matmul(LSS.dot(LSS.transpose()), F_derivatives_array[:, i, j])
+                 H_0j = spsolve(LSS1, F_derivatives_array[:, i, j])
+                 H_j = H_0j - F_derivatives_array[:, i, j]
+                 X_0j = spsolve(LSS1, H_j)
+                 X_vectors_array[:, i, j] = X_0j - H_j
+
+        for alpha_i1 in range(np.shape(self.specs_array)[0]): # over number of peaks
+            for alpha_j1 in range(np.shape(self.specs_array)[1]): # over paramteres inside the peak
+                for alpha_i2 in range(np.shape(self.specs_array)[0]): # over number of peaks
+                    for alpha_j2 in range(np.shape(self.specs_array)[1]): # over paramteres inside the peak
+                        alpha_matrix[alpha_i1, alpha_j1, alpha_i2, alpha_j2] = np.sum(X_vectors_array[:, alpha_i1, alpha_j1] * 
+                                                                                      F_derivatives_array[:, alpha_i2, alpha_j2])
+        return alpha_matrix
+
+    def construct_beta(self):
+        F_derivatives_array = self.construct_derivatives_over_params()
+        S = sparse.diags([1,-2,1],[-1,0,1], shape=(len(self.wn),len(self.wn)))
+        w = np.ones(len(self.wn))
+        W = sparse.spdiags(w, 0, len(self.wn), len(self.wn)) # diagonal 1-matrix
+        
+        LSS1 = S.dot(S.transpose()) * self.lam + W
+        
+        beta_vectors_array = np.zeros(( np.shape(self.specs_array)[0], np.shape(self.specs_array)[1] ))
+        # G_vectors_array[:, i, j] = np.matmul(LSS.dot(LSS.transpose()), F_derivatives_array[:, i, j])
+        H_0j = spsolve(LSS1, self.baseline)
+        H_j = H_0j - self.baseline
+        # H_0j = spsolve(LSS1, self.d2baseline)
+        # H_j = H_0j - self.d2baseline
+        
+        # import matplotlib.pyplot as plt
+        # import matplotlib as mpl
+        # mpl.rcParams['figure.dpi'] = 300
+        # mpl.rcParams['figure.figsize'] = [6.0, 3.2]
+        # plt.style.use('ggplot')
+        # plt.plot(self.wn, H_j); plt.show()
+        # plt.plot(self.wn, H_0j); plt.show()
+
+        for i in range(self.number_of_peaks):
+             for j in range(np.shape(self.specs_array)[1]):
+                 beta_vectors_array[i, j] = np.sum(H_j * F_derivatives_array[:, i, j])
+        return beta_vectors_array
+
+
+    def construct_corrections(self, corrections='main3'):
+        """
+        main 2:
+            corrections to fwhms and amplitudes
+        main3:
+            also positions """
+        alpha_matrix_matrix = self.construct_alpha_matrix()
+        if corrections=='main2' or corrections=='main3':
+            if corrections=='main2':
+                # discard derivatives over positions:
+                alpha_matrix_matrix[:, 0, :, :] = 0
+                alpha_matrix_matrix[:, :, :, 0] = 0
+            # discard derivatives over asym
+            alpha_matrix_matrix[:, 2, :, :] = 0
+            alpha_matrix_matrix[:, :, :, 2] = 0
+            # discard derivatives over gaussian share
+            alpha_matrix_matrix[:, 3, :, :] = 0
+            alpha_matrix_matrix[:, :, :, 3] = 0
+
+        beta_matrix_vector = self.construct_beta()
+        
+        npeaks = np.shape(self.specs_array)[0]
+        nparams = np.shape(self.specs_array)[1] # 5
+        
+        alpha_matrix_matrix = alpha_matrix_matrix.reshape(npeaks, nparams, npeaks*nparams)
+        alpha_matrix_matrix = alpha_matrix_matrix.reshape(npeaks*nparams, npeaks*nparams)
+        
+        beta_matrix_vector = beta_matrix_vector.reshape(npeaks*nparams)
+        
+        # params_corrections_vector = np.linalg.solve(alpha_matrix_matrix, beta_matrix_vector)
+        params_corrections_vector,_,_,_ = np.linalg.lstsq(alpha_matrix_matrix, beta_matrix_vector)
+        params_corrections_array = params_corrections_vector.reshape(npeaks, nparams)
+        return params_corrections_array
+
+    
+    def construct_derivatives_over_params(self, shift_over_param=128):
+        """ Shift over params by default = 1/128.
+            To make it smaller, set, say, shift_over_param=512
+            """
+        derivatives_array = np.zeros(( len(self.wn), np.shape(self.specs_array)[0], np.shape(self.specs_array)[1] ))
+     # 0:    x0 (default 0)
+     # 1:    fwhm (defauld 1)
+     # 2:    asymmetry (default 0)
+     # 3:    Gaussian_share (default 0, i.e. Lorentzian peak)
+     # 4:    voigt_amplitude (~area, not height)
+
+        for i in range(self.number_of_peaks):
+             for j in range(np.shape(self.specs_array)[1]):
+                 derivatives_array[:, i, j] = np.zeros_like(self.wn)
+                 if j == 0: # derivative over position:
+                     position_shift = (1/shift_over_param) * abs((self.wn[-1]-self.wn[0]) / (len(self.wn)-1)) # 1/shift_over_param of interpoint distance
+                     derivatives_array[:, i, j] += self.voigt_amplitude[i] * voigt_asym(self.wn-(self.position[i]+position_shift), self.fwhm[i], self.asymmetry[i], self.Gaussian_share[i])
+                     derivatives_array[:, i, j] -= self.voigt_amplitude[i] * voigt_asym(self.wn-(self.position[i]-position_shift), self.fwhm[i], self.asymmetry[i], self.Gaussian_share[i])
+                     derivatives_array[:, i, j] /= (2*position_shift)
+                     
+                 if j == 1: # derivative over fwhm:
+                     fwhm_shift = (1/shift_over_param) * abs(self.fwhm[i]) # 1/shift_over_param of current fwhm
+                     derivatives_array[:, i, j] += self.voigt_amplitude[i] * voigt_asym(self.wn-self.position[i], self.fwhm[i]+fwhm_shift, self.asymmetry[i], self.Gaussian_share[i])
+                     derivatives_array[:, i, j] -= self.voigt_amplitude[i] * voigt_asym(self.wn-self.position[i], self.fwhm[i]-fwhm_shift, self.asymmetry[i], self.Gaussian_share[i])
+                     derivatives_array[:, i, j] /= (2*fwhm_shift)
+                 
+                 if j == 2: # derivative over asymmetry:
+                     derivatives_array[:, i, j] += self.voigt_amplitude[i] * voigt_asym(self.wn-self.position[i], self.fwhm[i], self.asymmetry[i]+1/shift_over_param, self.Gaussian_share[i])
+                     derivatives_array[:, i, j] -= self.voigt_amplitude[i] * voigt_asym(self.wn-self.position[i], self.fwhm[i], self.asymmetry[i]-1/shift_over_param, self.Gaussian_share[i])
+                     derivatives_array[:, i, j] /= (2*shift_over_param)
+                     
+                 if j == 3: # derivative over Gaussian share:
+                     # shift only one side
+                     gs_shift = (1/shift_over_param) * np.sign (0.5-self.Gaussian_share[i])
+                     if gs_shift == 0: # in case if Gaussian_share was 0.5 eggzakktly
+                         gs_shift = 1/shift_over_param
+                     derivatives_array[:, i, j] += self.voigt_amplitude[i] * voigt_asym(self.wn-self.position[i], self.fwhm[i], self.asymmetry[i], self.Gaussian_share[i]+gs_shift)
+                     derivatives_array[:, i, j] -= self.voigt_amplitude[i] * voigt_asym(self.wn-self.position[i], self.fwhm[i], self.asymmetry[i], self.Gaussian_share[i])
+                     derivatives_array[:, i, j] /= gs_shift
+
+                 if j == 4: # derivative over amplitude is the peak shape divided by the amplitude:
+                     derivatives_array[:, i, j] += voigt_asym(self.wn-self.position[i], self.fwhm[i], self.asymmetry[i], self.Gaussian_share[i])
+
+        return derivatives_array
+    
+
+    def apply_corrections_to_BL_and_params(self):
+        params_corrections_array = self.construct_corrections()
+        self.specs_array += params_corrections_array
+        

@@ -8,7 +8,7 @@ Created
 
 import numpy as np
 from copy import deepcopy
-from scipy.optimize import least_squares, minimize, Bounds
+from scipy.optimize import least_squares, minimize, Bounds, fmin_l_bfgs_b
 from scipy.signal import find_peaks
 from datetime import datetime
 import colorsys
@@ -520,7 +520,7 @@ def multipeak_fit(derspec,
                          linewidth=1.5)
             # plt.tick_params(labelleft=False)
             # plt.grid(False)
-            # plt.title('lam = {:.2e}'.format(als_lambda), fontsize=10)
+            # plt.title('lam = {:.2e}'.format(the_lambda), fontsize=10)
             plt.xlabel(x_axis_title)
             plt.ylabel(y_axis_title)
             if labels_on_plot:
@@ -633,14 +633,14 @@ def multipeak_fit_with_BL(derspec,
                           fitrange=None,
                           display=1,
                           startingpoint='auto_generate',
-                          als_lambda = None,
+                          the_lambda = None,
                           saveresults = False,
                           filenameprefix = 'multipeak_fit',
                           x_axis_title = 'wavenumber / cm$^{-1}$',
                           y_axis_title = 'intensity',
                           supress_negative_peaks = False,
                           labels_on_plot = True,
-                          onlyLor = False):
+                          apply_corrections = False):
     """ 
      fitrange: (x1, x2) is the fitting range
      Display:    0 for nothing,
@@ -692,13 +692,13 @@ def multipeak_fit_with_BL(derspec,
     startingpoint[np.isnan(startingpoint[:,j]), j] = bounds_low[np.isnan(startingpoint[:,j]), j]*0.75 + bounds_high[np.isnan(startingpoint[:,j]), j]*0.25
     # 2(c): asym
     j = 2
-    bounds_low[np.isnan(bounds_low[:,j]), j] = -3.6e-1 * (1 - onlyLor + 1e-8)
-    bounds_high[np.isnan(bounds_high[:,j]), j] = 3.6e-1 * (1 - onlyLor + 1e-8)
+    bounds_low[np.isnan(bounds_low[:,j]), j] = -3.6e-1
+    bounds_high[np.isnan(bounds_high[:,j]), j] = 3.6e-1
     startingpoint[np.isnan(startingpoint[:,j]), j] = 0.5*(bounds_low[np.isnan(startingpoint[:,j]), j] + bounds_high[np.isnan(startingpoint[:,j]), j])
     # 3(d): Gaussian share
     j = 3
     bounds_low[np.isnan(bounds_low[:,j]), j] = 0
-    bounds_high[np.isnan(bounds_high[:,j]), j] =  1 - onlyLor * (onlyLor - 1e-8)
+    bounds_high[np.isnan(bounds_high[:,j]), j] =  1
     startingpoint[np.isnan(startingpoint[:,j]), j] = 0.5*(bounds_low[np.isnan(startingpoint[:,j]), j] + bounds_high[np.isnan(startingpoint[:,j]), j])
 
     # 0(a): peak positions.
@@ -739,38 +739,28 @@ def multipeak_fit_with_BL(derspec,
             print('fitting range from input: ', derspec.working_range)
 
     # step 2: compute lambda
-    if not als_lambda:
-        als_lambda = auto_lambda(derspec.y, fwhm_to_pixelwidth_ratio='auto', pixelwidth=interpoint_distance)
+    if not the_lambda:
+        the_lambda = auto_lambda(derspec.y, fwhm_to_pixelwidth_ratio='auto', pixelwidth=interpoint_distance)
 
     if display > 0:
-        print('in this run set als_lambda to {:.3e}'.format(als_lambda) )
+        print('in this run set the_lambda to {:.3e}'.format(the_lambda) )
 
     # step 3: initialize the multipeak (number_of_peaks)
     dermultipeak = MultiPeak(derspec.x, number_of_peaks)
     dermultipeak.specs_array[:,0:4] = startingpoint
     dermultipeak.specs_array[:,4] = 1
+    dermultipeak.lam = the_lambda
 
-
-    # # detrend it by end-points, since the code below assumes that at the end points the BL is zero
-    # # linear_trend = np.linspace(derspec.y[0], derspec.y[-1], len(derspec.y))
-    # if remove_offset:
-    #     offset = detrend_BL(derspec.y, display=display)
-    # else:
-    #     offset = np.zeros_like(derspec.y)
-
-    # Achtung ! !  !    
+    # current_multipeak would be updated at each iteration:
     current_multipeak = MultiPeak(derspec.x, number_of_peaks)
+    current_multipeak.lam = the_lambda
     
-    # initialize the sparse matrix:
+    # step 4: initialize the sparse matrix:
     # these matrixes gatta be set outside the fitting function:    
     L = len(derspec.y)
-    # D = sparse.diags([1,-2,1],[0,-1,-2], shape=(L,L-2))
     D2 = sparse.diags([1,-2,1],[-1,0,1], shape=(L,L))
     D4 = D2.dot(D2.transpose())
-    
-    # D = sparse.diags([1,-2,1],[-1,0,1], shape=(L,L))
-    # D = D.dot(D.transpose())
-    D = deepcopy(D4) * als_lambda
+    D = deepcopy(D4) * the_lambda
     w = np.ones(L)
     W = sparse.spdiags(w, 0, L, L)
     D += W
@@ -780,9 +770,12 @@ def multipeak_fit_with_BL(derspec,
     b_vector = np.zeros(L+number_of_peaks+2)
     b_vector[0:L] = derspec.y
     
-
     def find_baseline_and_amplitudes(peakparams, display=2):
-        
+        """ This function calculates the norm of the deviation
+            And updates the baseline and amplitudes to match the given peak parameters.
+            Achtung! Peak parameters here are given as a vector, not array!
+                (This vector is 1D, because the minimization takes a 1D vector)
+            """        
         # calculate peak shapes:
         current_multipeak.specs_array[:,0:4] = np.reshape(peakparams, (number_of_peaks, 4))
         current_multipeak.specs_array[:,4] = 1 # set amplitudes to 1 to find them later !
@@ -791,7 +784,6 @@ def multipeak_fit_with_BL(derspec,
         # add linear offset here:
         current_multipeak.linear_baseline_scalarpart = np.ones_like(derspec.y) / len(derspec.y)
         current_multipeak.linear_baseline_slopepart = np.linspace(-1, 1, len(derspec.y)) / len(derspec.y)
-        # np.ones_like(derspec.y)
         peak_shapes = np.column_stack((peak_shapes , current_multipeak.linear_baseline_scalarpart))
         peak_shapes = np.column_stack((peak_shapes , current_multipeak.linear_baseline_slopepart))
         
@@ -814,7 +806,6 @@ def multipeak_fit_with_BL(derspec,
     
         full_solution = spsolve(D, b_vector)
         current_multipeak.d2baseline = full_solution[0:L]
-        # what should be the amplitudes here???
         the_amplitudes = full_solution[L:-2] # **2 # * peak_fwhms
         current_multipeak.linear_baseline_scalarpart *= full_solution[-2]
         current_multipeak.linear_baseline_slopepart *= full_solution[-1]
@@ -836,7 +827,7 @@ def multipeak_fit_with_BL(derspec,
         
         current_multipeak.specs_array[:,4] = the_amplitudes
 
-        norm_of_deviation = np.sum( (np.matmul(D2.toarray(), current_multipeak.d2baseline))**2 * als_lambda +
+        norm_of_deviation = np.sum( (np.matmul(D2.toarray(), current_multipeak.d2baseline))**2 * the_lambda +
                                     (derspec.y - 
                                     current_multipeak.d2baseline -
                                     current_multipeak.linear_baseline -
@@ -845,6 +836,7 @@ def multipeak_fit_with_BL(derspec,
         if supress_negative_peaks:
             if np.min(the_amplitudes) < 0:
                 # print('suppressing negative peaks: np.min(the_amplitudes) =', np.min(the_amplitudes))
+                norm_of_deviation += 1
                 norm_of_deviation *= 1e4
 
         return norm_of_deviation
@@ -859,11 +851,31 @@ def multipeak_fit_with_BL(derspec,
         try:
             solution = minimize(find_baseline_and_amplitudes,
                         startingpoint1D,
-                        method = 'L-BFGS-B',
+                        method = 'L-BFGS-B', # 'Nelder-Mead'
                         bounds=Bounds(bounds_low1D, bounds_high1D),
+                        options={'maxcor':8,
+                                 'ftol':1e-7,
+                                 'gtol': 4e-05,
+                                 'eps': 1e-07,
+                                 'maxiter':128,
+                                  'maxfun':4096,
+                                 'iprint':8,
+                                 'maxls':16}
                         # options={'disp':2}
                         )
 
+            # solution = fmin_l_bfgs_b(find_baseline_and_amplitudes,
+            #                     startingpoint1D,
+            #                     approx_grad=True,
+            #                     bounds=(bounds_low1D, bounds_high1D),
+            #                     m=8,
+            #                     factr=1e7,
+            #                     pgtol=4e-05,
+            #                     epsilon=1e-07,
+            #                     iprint=1,
+            #                     maxfun=1e3,
+            #                     maxiter=2e3,
+            #                     maxls=16)
             # final evaluation of 'find_baseline_and_amplitudes'
             #   to make sure that the optimized parameters are written to the results:
             optimized_norm_of_deviation = find_baseline_and_amplitudes(solution.x)
@@ -884,10 +896,29 @@ def multipeak_fit_with_BL(derspec,
             converged_parameters = np.reshape(solution.x, (number_of_peaks, 4))
             dermultipeak.specs_array[:,0:4] = converged_parameters
             continue
-
+        
     if saveresults:
         Path("fit_results/txt").mkdir(parents=True, exist_ok=True)
         Path("fit_results/pic").mkdir(parents=True, exist_ok=True)
+        
+    if apply_corrections:
+        params_corrections_array = dermultipeak.construct_corrections()
+        uncorrected_specs_array = deepcopy(dermultipeak.specs_array)
+        dermultipeak.specs_array += params_corrections_array
+        baseline_before_corrections = deepcopy(dermultipeak.baseline)
+        D2 = sparse.diags([1,-2,1],[-1,0,1], shape=(L,L))
+        D4 = D2.dot(D2.transpose())
+        D_short = deepcopy(D4) * the_lambda
+        w = np.ones(L)
+        W = sparse.spdiags(w, 0, L, L)
+        D_short += W
+        D_short = sparse.csr_matrix(D_short)
+        b_vector_short = derspec.y - dermultipeak.curve - dermultipeak.linear_baseline
+
+        corrected_baseline = spsolve(D_short, b_vector_short)
+        dermultipeak.d2baseline = corrected_baseline
+        if display > 0:
+            print("""applying corrections, please check if that's what you want""")
 
     if display > 0 or saveresults:
         if display > 0:
@@ -902,9 +933,14 @@ def multipeak_fit_with_BL(derspec,
                          ':', color=next(cycol),
                          label='peak at {:.1f}'.format(dermultipeak.specs_array[current_peak,0]),
                          linewidth=1)
+            if apply_corrections:
+                plt.plot(dermultipeak.wn, baseline_before_corrections,
+                         ':', color='k',
+                         label='BL before corrections',
+                         linewidth=1)
             # plt.tick_params(labelleft=False)
             # plt.grid(False)
-            plt.title('multipeak fit,  ' + r'$\lambda$' + ' = {:.2e}'.format(als_lambda), fontsize=10)
+            plt.title('multipeak fit,  ' + r'$\lambda$' + ' = {:.2e}'.format(the_lambda), fontsize=10)
             plt.xlabel(x_axis_title)
             plt.ylabel(y_axis_title)
             if labels_on_plot:
@@ -935,6 +971,11 @@ def multipeak_fit_with_BL(derspec,
         print(results_header)
         with np.printoptions(formatter={'float': '{: 11.3f}'.format}):
             print(dermultipeak.specs_array)
+        if apply_corrections:
+            print('before corrections:')
+            print(results_header)
+            with np.printoptions(formatter={'float': '{: 11.3f}'.format}):
+                print(uncorrected_specs_array)
         if saveresults:
             # save peak parameters to file
             dermultipeak.save_specs_array_to_txt(filename='fit_results/txt/'+filenameprefix + '_peakparams_' + now.strftime("%H%M%S") + '.txt')
@@ -949,62 +990,57 @@ def multipeak_fit_with_BL(derspec,
 
 
 
-
-
-
-
-
-
-
-
 if __name__ == '__main__':
 
-    # s = read_startingpoint_from_txt('test_spectrum_startingpoint.txt')
-    # current_spectrum = np.genfromtxt('test_data_experimental_spectrum.txt') # read file to numpy format
-    # testspec = ExpSpec(current_spectrum[:,0], current_spectrum[:,1]) # convert the spectrum to an *object* of a specific format.        
+    s = read_startingpoint_from_txt('test_spectrum_startingpoint.txt')
+    current_spectrum = np.genfromtxt('test_data_experimental_spectrum.txt') # read file to numpy format
+    testspec = ExpSpec(current_spectrum[:,0], current_spectrum[:,1]) # convert the spectrum to an *object* of a specific format.        
     
-    # dat_result = multipeak_fit_with_BL(testspec,
-    #                           fitrange=(500, 3700),
-    #                             startingpoint='test_spectrum_startingpoint.txt',
-    #                             als_lambda = 6e7,
-    #                           saveresults=True, display=2)
+    dat_result = multipeak_fit_with_BL(testspec,
+                              fitrange=(500, 3700),
+                              startingpoint='test_spectrum_startingpoint.txt',
+                              the_lambda = 1e8, # 6e7
+                              saveresults=True,
+                              display=2,
+                              apply_corrections=True,)
 
 
 
 
 
 
-    # 1) generate test spectrum:
-    print('''let's generate a test spectrum with two Lor functions, sine-like baseline and random noise''')
-    number_of_points = 1025
-    wavenumber = np.linspace(0, 1024, num=number_of_points)
-    Lorentz_positions = (384, 720)
-    Lorentz_FWHMs = (32, 64)
-    amplitudes0 = (128*2, 128*8)
-    synthetic_bl = 2*np.sin(np.pi * wavenumber/256)
-    random_noise = 2*np.random.uniform(-1, 1, len(wavenumber))
-    lor_func_0 = amplitudes0[0] * voigt_asym(wavenumber-Lorentz_positions[0], Lorentz_FWHMs[0], 0, 0)
-    lor_func_1 = amplitudes0[1] * voigt_asym(wavenumber-Lorentz_positions[1], Lorentz_FWHMs[1], 0, 0)
-    lor_funcs = lor_func_0 + lor_func_1
-    offset = np.zeros_like(wavenumber)
+    # # 1) generate test spectrum:
+    # print('''let's generate a test spectrum with two Lor functions, sine-like baseline and random noise''')
+    # number_of_points = 1025
+    # wavenumber = np.linspace(0, 1024, num=number_of_points)
+    # Lorentz_positions = (384, 720)
+    # Lorentz_FWHMs = (32, 64)
+    # amplitudes0 = (128*2, 128*8)
+    # synthetic_bl = 2*np.sin(np.pi * wavenumber/256)
+    # random_noise = 2*np.random.uniform(-1, 1, len(wavenumber))
+    # lor_func_0 = amplitudes0[0] * voigt_asym(wavenumber-Lorentz_positions[0], Lorentz_FWHMs[0], 0, 0)
+    # lor_func_1 = amplitudes0[1] * voigt_asym(wavenumber-Lorentz_positions[1], Lorentz_FWHMs[1], 0, 0)
+    # lor_funcs = lor_func_0 + lor_func_1
+    # offset = np.zeros_like(wavenumber)
     
-    # optional: add linear offset:
-    y1 = 8; y2 = -16
-    offset = np.linspace(-1, 1, num=number_of_points) * (y2-y1)/2 + (y2+y1)/2
+    # # optional: add linear offset:
+    # y1 = 8; y2 = -16
+    # offset = np.linspace(-1, 1, num=number_of_points) * (y2-y1)/2 + (y2+y1)/2
 
-    # join baseline, noise, Lor functions and linear offset into the synthetic spectrum:
-    full_f = synthetic_bl+random_noise+lor_funcs + offset
-    # format it to an "ExpSpec" class:
-    testspec = ExpSpec(wavenumber, full_f)
-
-    # 2) fit it
-    print('''let's fit it''')
-    # l = multipeak_fit_with_BL(testspec, saveresults=True, remove_offset=False) #, als_lambda=2e6)
-    # l = multipeak_fit_with_BL(testspec, saveresults=True, remove_offset=True) #, als_lambda=2e6)
-
-    # full_f = synthetic_bl+random_noise+lor_funcs + 10
+    # # join baseline, noise, Lor functions and linear offset into the synthetic spectrum:
+    # full_f = synthetic_bl+random_noise+lor_funcs + offset
+    # # format it to an "ExpSpec" class:
     # testspec = ExpSpec(wavenumber, full_f)
 
-    # l = multipeak_fit_with_BL(testspec, saveresults=True, remove_offset=False) #, als_lambda=2e6)
-    l = multipeak_fit_with_BL(testspec, saveresults=False) #, als_lambda=2e6)
+    # # 2) fit it
+    # print('''let's fit it''')
+    # # l = multipeak_fit_with_BL(testspec, saveresults=True, remove_offset=False) #, the_lambda=2e6)
+    # # l = multipeak_fit_with_BL(testspec, saveresults=True, remove_offset=True) #, the_lambda=2e6)
+
+    # # full_f = synthetic_bl+random_noise+lor_funcs + 10
+    # # testspec = ExpSpec(wavenumber, full_f)
+
+    # # l = multipeak_fit_with_BL(testspec, saveresults=True, remove_offset=False) #, the_lambda=2e6)
+    
+    # l = multipeak_fit_with_BL(testspec, saveresults=False, apply_corrections=True, the_lambda=2e6)
     
