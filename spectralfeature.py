@@ -285,19 +285,13 @@ class MultiPeak ():
     def bounds (self, bounds):
         LB = bounds[0]
         UB = bounds[1]
-        # split params into separate peak params:
-        # LB = np.split(LB, np.cumsum([p.number_of_parameters-1 for p in self.peaks[0:-3]]))
-        # UB = np.split(UB, np.cumsum([p.number_of_parameters-1 for p in self.peaks[0:-3]]))
-        # print('LB = ', LB)
         a = 0
         for i in range(self.number_of_peaks):
             for j in range(len(self.peaks[i].params)-1):
                 self.peaks[i].LB[j] = LB[a]
                 self.peaks[i].UB[j] = UB[a]
                 a += 1
-                # print('LB = ', LB)
-                # self.peaks[i].UB[self.peaks[i].optimization_params_order[j]] = UB[i, j]
-                # 1==1
+
 # @Test&Debug:
             # print (the_params[i])
 # EndOf @Test&Debug:
@@ -637,13 +631,15 @@ class MultiPeak ():
                                     constraint_L = constraint_L.replace('(', '')
                                     if is_number(constraint_L):
                                         constraint_L = float(constraint_L)
-                                        current_peak.LB[current_peak.optimization_params_order[parameter_index]] = deepcopy(constraint_L)
+                                        if not np.isnan(constraint_L):
+                                            current_peak.LB[current_peak.optimization_params_order[parameter_index]] = deepcopy(constraint_L)
                                     string_number += 1
                                     constraint_U = currentline[string_number]
                                     constraint_U = constraint_U.replace(')', '')
                                     if is_number(constraint_U):
                                         constraint_U = float(constraint_U)
-                                        current_peak.UB[current_peak.optimization_params_order[parameter_index]] = deepcopy(constraint_U)
+                                        if not np.isnan(constraint_U):
+                                            current_peak.UB[current_peak.optimization_params_order[parameter_index]] = deepcopy(constraint_U)
                                     string_number += 1
                             parameter_index +=1
                         except IndexError:
@@ -721,21 +717,26 @@ if __name__ == '__main__':
     mp = MultiPeak(np.linspace(0, 1024, 1025), number_of_peaks=3)
     print('mp.peaks[0].position', mp.peaks[0].params.position)
     
-    # mp.optimization_params
-    # mp.optimization_params = [1, 2, 0.0, 0.0,   101, 80, 0.0, 0.0,   601, 16, 0.0, 0.0]
-    mp.peaks[0].params.position = 200
-    mp.peaks[0].params.intensity = 2e3
-    mp.peaks[1].params.position = 400
-    mp.peaks[1].params.intensity = 160
-    mp.peaks[2].params.intensity = 31
-    mp.linear_baseline_slope=1
-    mp.linear_baseline_offset=1
-    # plt.plot(mp.wn, mp.peaks[-1].curve)
-    plt.plot(mp.wn, mp.curve)
-    # plt.plot(mp.wn, np.sum(p.curve for p in mp.peaks[0:-2]))
-    mp2 = deepcopy(mp)
     
-    mp2.construct_corrections()
+    
+    current_startingpoint = 'test_spectrum_startingpoint.txt'
+    mp.read_startingpoint_from_txt(current_startingpoint)
+    
+    # # mp.optimization_params
+    # # mp.optimization_params = [1, 2, 0.0, 0.0,   101, 80, 0.0, 0.0,   601, 16, 0.0, 0.0]
+    # mp.peaks[0].params.position = 200
+    # mp.peaks[0].params.intensity = 2e3
+    # mp.peaks[1].params.position = 400
+    # mp.peaks[1].params.intensity = 160
+    # mp.peaks[2].params.intensity = 31
+    # mp.linear_baseline_slope=1
+    # mp.linear_baseline_offset=1
+    # # plt.plot(mp.wn, mp.peaks[-1].curve)
+    # plt.plot(mp.wn, mp.curve)
+    # # plt.plot(mp.wn, np.sum(p.curve for p in mp.peaks[0:-2]))
+    # mp2 = deepcopy(mp)
+    
+    # mp2.construct_corrections()
 
 
 

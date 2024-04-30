@@ -328,20 +328,23 @@ def multipeak_fit_with_BL(derspec,
 
 if __name__ == '__main__':
 
-    # s = read_startingpoint_from_txt('test_spectrum_startingpoint.txt')
     current_spectrum = np.genfromtxt('test_data_experimental_spectrum.txt') # read file to numpy format
     testspec = ExpSpec(current_spectrum[:,0], current_spectrum[:,1]) # convert the spectrum to an *object* of a specific format.        
+
+    # optional: reduce number of points
+    wn_interpolated = np.linspace(current_spectrum[0,0], current_spectrum[-1,0], 2048)
+    intensity_interpolated = np.interp(wn_interpolated, current_spectrum[:,0], current_spectrum[:,1])
+    testspec = ExpSpec(wn_interpolated, intensity_interpolated)
+
+    current_startingpoint = 'test_spectrum_startingpoint.txt'
+
+    dat_result = multipeak_fit_with_BL(testspec_interplated, saveresults=True,
+                              the_lambda=1e8,
+                              fitrange=(500, 3700),
+                              startingpoint=current_startingpoint,
+                              supress_negative_peaks=True,
+                              )
     
-    # dat_result = multipeak_fit_with_BL(testspec,
-    #                           fitrange=(500, 3700),
-    #                           startingpoint='test_spectrum_startingpoint.txt',
-    #                           the_lambda = 1e8, # 6e7
-    #                           saveresults=True,
-    #                           display=2,
-    #                           apply_corrections=False,)
-
-
-
 
 
 
@@ -368,36 +371,10 @@ if __name__ == '__main__':
     # # plt.plot(dmp.wn, dmp.baseline)
     # # plt.plot(dmp.wn, dmp.linear_baseline)
 
-    # # offset = np.zeros_like(wavenumber)
-    
-    # # # optional: add linear offset:
-    # # y1 = 8; y2 = -16
-    # # offset = np.linspace(-1, 1, num=number_of_points) * (y2-y1)/2 + (y2+y1)/2
-
-    # # format it to an "ExpSpec" class:
-    # testspec = ExpSpec(dmp.wn, dmp.curve)
-
     # # 2) fit it
     # print('''let's fit it''')
-    # l = multipeak_fit_with_BL(testspec, saveresults=True, the_lambda=1e7) #, the_lambda=2e6)
-    # l = multipeak_fit_with_BL(testspec, saveresults=True, the_lambda=1e7, apply_corrections=True, startingpoint='test_sp_lor_asym_1.txt')
-    # l = multipeak_fit_with_BL(testspec, saveresults=True, the_lambda=1e7) #, startingpoint='test_sp_lor_asym_1.txt')
+    # l = multipeak_fit_with_BL(testspec, saveresults=True, the_lambda=1e7))
     
-    current_startingpoint = 'test_spectrum_startingpoint_2p_l.txt'
-    # current_startingpoint = 'test_sp_2numbers.txt'
 
-    l = multipeak_fit_with_BL(testspec, saveresults=True,
-                              the_lambda=1e7,
-                              fitrange=(500, 2500),
-                              startingpoint=current_startingpoint,
-                              supress_negative_peaks=True,
-                              )
-    # # l = multipeak_fit_with_BL(testspec, saveresults=True, remove_offset=True) #, the_lambda=2e6)
 
-    # # full_f = synthetic_bl+random_noise+lor_funcs + 10
-    # # testspec = ExpSpec(wavenumber, full_f)
-
-    # # l = multipeak_fit_with_BL(testspec, saveresults=True, remove_offset=False) #, the_lambda=2e6)
-    
-    # l = multipeak_fit_with_BL(testspec, saveresults=False, apply_corrections=True, the_lambda=2e6)
     

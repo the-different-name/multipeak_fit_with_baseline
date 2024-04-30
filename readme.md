@@ -18,7 +18,11 @@ We intend to find the baseline and the peak parameters. We don't know the shape 
 
 ```expspec.py``` -- spectral class format, some supplementary function - probably you don't want to look at it.
 
-```spectralfeature.py``` -- format of the 'multi-peak'. The peak shape is defined here, see "Asymmetric pseudo-Voigt funtion".
+```spectralfeature.py``` -- format of the 'multi-peak'. Possible peak shapes are defined here, see "PossibleFunctions".
+
+```spectroutines.py``` -- supplementary procedures.
+
+```generate_random_spectrum.py``` -- generate multipeak with random parameters. With noise.
 
 
 Typically, if you have your test spectrum as *numpy-readable* *x-y* file (a text file with two columns separated with tabs or spaces), you could use the following example:
@@ -26,7 +30,7 @@ Typically, if you have your test spectrum as *numpy-readable* *x-y* file (a text
 from fit_multipeak import * # load the script
 current_spectrum = np.genfromtxt('my_spectrum.txt') # read file to numpy format
 testspec = ExpSpec(current_spectrum[:,0], current_spectrum[:,1]) # convert the spectrum to an *object* of a specific format.
-_ = multipeak_fit_with_BL(testspec, saveresults = True) # fit it! The starting point will be generated automatically from *find_da_peaks* function.
+dat_result = multipeak_fit_with_BL(testspec, saveresults = True) # fit it! The starting point will be generated automatically from *find_da_peaks* function.
 ```
 
 The example above is a basic usage. You can set the starting point for the fit, specify the fitting range, control the display options etc.
@@ -41,4 +45,19 @@ dat_result = multipeak_fit_with_BL(testspec,
                          startingpoint='test_spectrum_startingpoint.txt',
                          als_lambda = 6e7,
                          saveresults=True, display=2)
+```
+
+If you need to display the peak parameters, just type:
+```python
+dat_result.params
+```
+
+If you need to display the peak parameters, just type:
+```python
+dat_result.params
+```
+
+To save peak parameters to some file:
+```python
+dat_result.save_params_to_txt(filename)
 ```

@@ -29,6 +29,9 @@ def get_colors(num_colors):
     return colors
 
 def is_number(n):
+    """
+    'nan' and np.nan are considered as numbers !
+    """
     try:
         float(n)   # Type-casting the string to `float`.
                    # If string is not a valid `float`, 
@@ -624,4 +627,3 @@ def find_startingpoint_for_fit_with_baseline(derspec, fitrange=None):
     
     return startingpoint
         
-    
