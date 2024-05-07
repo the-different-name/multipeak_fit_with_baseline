@@ -40,20 +40,14 @@ from scipy.integrate import cumulative_trapezoid
 
 def generate_the_spectrum(wn=np.linspace(0, 1024, 1025),
                           number_of_peaks=1,
-                          generate_baseline=True,
                           baseline_multiplier=1e-4,
-                          generate_noise=True,
                           return_order=0,
                           function='asym_pV',
                           display=1):
     mp = MultiPeak(wn, number_of_peaks=number_of_peaks)
     
-    if generate_noise:
-        # generate Gaussian noise with mean=0 and std=1:
-        the_noise = np.random.normal(0, 1, len(wn))
+    the_noise = np.random.normal(0, 1, len(wn))
         # mp.d2baseline += the_noise
-    if generate_baseline:
-        print(' generate_baseline not yet implemented')
     
     # generate peaks with S/N ratio between the following numbers:
     SNratio_range = 1, 256
@@ -103,15 +97,15 @@ def generate_the_spectrum(wn=np.linspace(0, 1024, 1025),
     
     if display > 0:
         if return_order == 0:
-            plt.plot(mp.wn, mp.curve, 'r')
+            plt.plot(mp.wn, mp.curve+the_noise, 'r')
             plt.plot(mp.wn, mp.d2baseline, ':k')
             plt.show()
         if return_order == 1:
-            plt.plot(mp.wn, np.gradient(mp.curve), 'r')
+            plt.plot(mp.wn, np.gradient(mp.curve+the_noise), 'r')
             plt.plot(mp.wn, bl_1stDer, ':k')
             plt.show()
         if return_order == 2:
-            plt.plot(mp.wn, np.gradient(np.gradient(mp.curve)), 'r')
+            plt.plot(mp.wn, np.gradient(np.gradient(mp.curve+the_noise)), 'r')
             plt.plot(mp.wn, bl_2ndDer, ':k')
             plt.show()
         print ('mp.params: \n', mp.params)
@@ -130,9 +124,9 @@ if __name__ == '__main__':
     current_multipeak, current_noise, current_baseline = generate_the_spectrum(number_of_peaks=2, return_order=0)
 
 # # you should also try 
-#     _ = generate_the_spectrum(number_of_peaks=2, return_order=1)
+    # _ = generate_the_spectrum(number_of_peaks=2, return_order=1)
 #     # and
-#     _ = generate_the_spectrum(number_of_peaks=2, return_order=2)
+    # _ = generate_the_spectrum(number_of_peaks=2, return_order=2)
 
     
 
