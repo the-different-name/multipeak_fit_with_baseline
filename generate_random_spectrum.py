@@ -3,7 +3,7 @@
 # How to use:
 wn is x-axis (by default generated from 0 to 1024)
 typically, you just call
-    a = generate_the_spectrum(number_of_peaks=2)
+    a, noise, baseline = generate_the_spectrum(number_of_peaks=2)
 then, if you need to access some peak parameter, you type the parameter name like this:
     a.peaks[peak_number].params.position
     a.peaks[peak_number].params.fwhm
@@ -27,7 +27,7 @@ To save peak parameters to a file:
 
 import numpy as np
 from spectralfeature import MultiPeak
-# from copy import deepcopy
+from copy import deepcopy
 # import pandas as pd
 # from spectroutines import is_number
 import matplotlib as mpl
@@ -35,11 +35,15 @@ mpl.rcParams['figure.dpi'] = 300
 mpl.rcParams['figure.figsize'] = [6.0, 3.2]
 import matplotlib.pyplot as plt
 plt.style.use('ggplot')
+# import time
+from scipy.integrate import cumulative_trapezoid
 
 def generate_the_spectrum(wn=np.linspace(0, 1024, 1025),
                           number_of_peaks=1,
-                          generate_baseline=False,
+                          generate_baseline=True,
+                          baseline_multiplier=1e-4,
                           generate_noise=True,
+                          return_order=0,
                           function='asym_pV',
                           display=1):
     mp = MultiPeak(wn, number_of_peaks=number_of_peaks)
@@ -47,7 +51,7 @@ def generate_the_spectrum(wn=np.linspace(0, 1024, 1025),
     if generate_noise:
         # generate Gaussian noise with mean=0 and std=1:
         the_noise = np.random.normal(0, 1, len(wn))
-        mp.d2baseline += the_noise
+        # mp.d2baseline += the_noise
     if generate_baseline:
         print(' generate_baseline not yet implemented')
     
@@ -71,14 +75,65 @@ def generate_the_spectrum(wn=np.linspace(0, 1024, 1025),
             print('peak at {:.2f}, fwhm={:.2f}, height={:.2f}, gaussshare={:.2f}, asym={:.2f}'.format(mp.peaks[pp].params.position, mp.peaks[pp].params.fwhm, mp.peaks[pp].peak_height, mp.peaks[pp].params.gaussshare, mp.peaks[pp].params.asym))
         else:
             print('peak at {:.2f}, fwhm={:.2f}, height={:.2f}'.format(mp.peaks[pp].params.position, mp.peaks[pp].params.fwhm, mp.peaks[pp].peak_height))
+
+    def second_derivative_pseudoFourier_line(number_of_FourierCoeffs=255):
+        Fourier_line_2ndDer = np.zeros_like(wn)
+        
+        # make x_local from -pi to pi, without requirement for even spacing (otherwise we'd use np.linspace)
+        x_local = deepcopy(wn) 
+        x_local -= 0.5 * (np.max(wn) + np.min(wn))
+        x_local *= 2*np.pi / abs(np.max(wn) - np.min(wn))
+    
+        for i in range(number_of_FourierCoeffs):
+            current_frequency = np.random.normal(0, 5)
+            current_amplitude = np.random.normal(0, 1)
+            current_prefactor = np.exp(-current_frequency**2 / 27) * current_amplitude
+            current_phase = np.random.uniform(0, 2*np.pi)
+            Fourier_line_2ndDer +=  current_prefactor * np.cos(x_local * current_frequency + current_phase)
+        x0 = np.argmin(abs(x_local))
+        Fourier_line_2ndDer *= baseline_multiplier
+        Fourier_line_1stDer = cumulative_trapezoid(Fourier_line_2ndDer, x=wn, initial=0)
+        Fourier_line_1stDer -= Fourier_line_1stDer[x0]
+        Fourier_line_Integr = cumulative_trapezoid(Fourier_line_1stDer, x=wn, initial=0)
+        Fourier_line_Integr -= Fourier_line_Integr[x0]
+        return Fourier_line_Integr, Fourier_line_1stDer, Fourier_line_2ndDer
+
+    baseline, bl_1stDer, bl_2ndDer = second_derivative_pseudoFourier_line()
+    mp.d2baseline = baseline
     
     if display > 0:
-        plt.plot(mp.wn, mp.curve)
+        if return_order == 0:
+            plt.plot(mp.wn, mp.curve, 'r')
+            plt.plot(mp.wn, mp.d2baseline, ':k')
+            plt.show()
+        if return_order == 1:
+            plt.plot(mp.wn, np.gradient(mp.curve), 'r')
+            plt.plot(mp.wn, bl_1stDer, ':k')
+            plt.show()
+        if return_order == 2:
+            plt.plot(mp.wn, np.gradient(np.gradient(mp.curve)), 'r')
+            plt.plot(mp.wn, bl_2ndDer, ':k')
+            plt.show()
         print ('mp.params: \n', mp.params)
-    return mp
+            
+    if return_order == 0:
+        return mp, the_noise, baseline
+    if return_order == 1:
+        return mp, np.gradient(the_noise), bl_1stDer
+    if return_order == 2:
+        return mp, np.gradient(np.gradient(the_noise)), bl_2ndDer
+
 
 
 if __name__ == '__main__':
+    
+    current_multipeak, current_noise, current_baseline = generate_the_spectrum(number_of_peaks=2, return_order=0)
 
-    a = generate_the_spectrum(number_of_peaks=2, display=1) # , function='Lorentz')
+# # you should also try 
+#     _ = generate_the_spectrum(number_of_peaks=2, return_order=1)
+#     # and
+#     _ = generate_the_spectrum(number_of_peaks=2, return_order=2)
 
+    
+
+    
