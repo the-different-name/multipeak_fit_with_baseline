@@ -43,6 +43,7 @@ def generate_the_spectrum(wn=np.linspace(0, 1024, 1025),
                           baseline_multiplier=1e-4,
                           return_order=0,
                           function='asym_pV',
+                          # peak amplitude
                           display=1):
     mp = MultiPeak(wn, number_of_peaks=number_of_peaks)
     
@@ -63,7 +64,6 @@ def generate_the_spectrum(wn=np.linspace(0, 1024, 1025),
             mp.peaks[pp].params.asym = np.random.normal(0, 0.36/3) # /3 is because of 3sigma rule
             
         mp.peaks[pp].peak_height = SNratio_range[0] + abs(np.random.normal(0, SNratio_range[1]/3)) # /3 is because of 3sigma rule
-        np.random.uniform(SNratio_range[0], SNratio_range[1])
         
         if mp.peaks[pp].function == 'asym_pV':
             print('peak at {:.2f}, fwhm={:.2f}, height={:.2f}, gaussshare={:.2f}, asym={:.2f}'.format(mp.peaks[pp].params.position, mp.peaks[pp].params.fwhm, mp.peaks[pp].peak_height, mp.peaks[pp].params.gaussshare, mp.peaks[pp].params.asym))
@@ -121,7 +121,9 @@ def generate_the_spectrum(wn=np.linspace(0, 1024, 1025),
 
 if __name__ == '__main__':
     
-    current_multipeak, current_noise, current_baseline = generate_the_spectrum(number_of_peaks=2, return_order=0)
+    current_multipeak, current_noise, current_baseline = generate_the_spectrum(number_of_peaks=1,
+                                                                               baseline_multiplier=1e-4,
+                                                                               return_order=0)
 
 # # you should also try 
     # _ = generate_the_spectrum(number_of_peaks=2, return_order=1)

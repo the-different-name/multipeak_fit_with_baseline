@@ -4,6 +4,13 @@
 Primary intended use is Raman spectroscopy. Baseline and peaks are found by Tikhonov regularization.
 The regularization parameter can be automatically estimated from the 4th derivative of the longpass-filtered spectrum.
 
+The algorithm is described in the following paper:
+**Separation of Spectral Lines from a Broadband Background and Noise Filtering by Modified Tikhonov Regularization**
+IA Larkin, AV Vagov, VI Korepanov - Optoelectronics, Instrumentation and Data Processing, 2023
+[doi:10.3103/S8756699023060080](https://dx.doi.org/10.3103/S8756699023060080)
+
+
+
 ## Current paradigm:
 We have a spectrum, which has three contributions:
 * signal (relatively sharp peaks);
