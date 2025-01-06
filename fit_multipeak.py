@@ -328,28 +328,28 @@ def multipeak_fit_with_BL(derspec,
 
 if __name__ == '__main__':
 
-    current_spectrum = np.genfromtxt('test_data_experimental_spectrum.txt') # read file to numpy format
-    testspec = ExpSpec(current_spectrum[:,0], current_spectrum[:,1]) # convert the spectrum to an *object* of a specific format.        
+    # current_spectrum = np.genfromtxt('test_data_experimental_spectrum.txt') # read file to numpy format
+    # testspec = ExpSpec(current_spectrum[:,0], current_spectrum[:,1]) # convert the spectrum to an *object* of a specific format.        
 
-    # optional: reduce number of points
-    wn_interpolated = np.linspace(current_spectrum[0,0], current_spectrum[-1,0], 2048)
-    intensity_interpolated = np.interp(wn_interpolated, current_spectrum[:,0], current_spectrum[:,1])
-    testspec = ExpSpec(wn_interpolated, intensity_interpolated)
+    # # optional: reduce number of points
+    # wn_interpolated = np.linspace(current_spectrum[0,0], current_spectrum[-1,0], 2048)
+    # intensity_interpolated = np.interp(wn_interpolated, current_spectrum[:,0], current_spectrum[:,1])
+    # testspec = ExpSpec(wn_interpolated, intensity_interpolated)
 
-    current_startingpoint = 'test_spectrum_startingpoint.txt'
+    # current_startingpoint = 'test_spectrum_startingpoint.txt'
 
-    dat_result = multipeak_fit_with_BL(testspec_interplated, saveresults=True,
-                              the_lambda=1e8,
-                              fitrange=(500, 3700),
-                              startingpoint=current_startingpoint,
-                              supress_negative_peaks=True,
-                              )
+    # dat_result = multipeak_fit_with_BL(testspec, saveresults=True,
+    #                           the_lambda=1e5,
+    #                           fitrange=(500, 3700),
+    #                           startingpoint=current_startingpoint,
+    #                           supress_negative_peaks=True,
+    #                           )
     
 
 
 
     # # 1) generate test spectrum:
-    # print('''let's generate a test spectrum with two Lor functions, sine-like baseline and random noise''')
+    print('''let's generate a test spectrum with two Lor functions, sine-like baseline and random noise''')
     # number_of_points = 1025
     # wavenumber = np.linspace(0, 1024, num=number_of_points)
     # Lorentz_positions = (384, 720)
@@ -370,11 +370,17 @@ if __name__ == '__main__':
     # plt.plot(dmp.wn, dmp.curve); plt.show()
     # # plt.plot(dmp.wn, dmp.baseline)
     # # plt.plot(dmp.wn, dmp.linear_baseline)
+    from generate_random_spectrum import *
+    current_multipeak, current_noise, current_baseline = generate_the_spectrum(number_of_peaks=4)
 
-    # # 2) fit it
-    # print('''let's fit it''')
-    # l = multipeak_fit_with_BL(testspec, saveresults=True, the_lambda=1e7))
+    # 2) fit it
+    print('''let's fit it''')
+
+    l = multipeak_fit_with_BL(ExpSpec(current_multipeak.wn, current_multipeak.curve+current_noise), saveresults=True, the_lambda=1e6, supress_negative_peaks=True)
     
 
 
     
+    # plt.plot(dat_result.wn, dat_result.curve, ':b'); plt.plot(testspec.x, testspec.y, 'o', mfc='none', ms = 4, mec=(0.1, 0.1, 0.1, 0.5)); plt.xlim(499, 550); plt.ylim(250, 310); plt.show()
+    # plt.plot(dat_result.wn, dat_result.curve, ':b'); plt.plot(testspec.x, testspec.y, 'o', mfc='none', ms = 4, mec=(0.1, 0.1, 0.1, 0.5)); plt.xlim(3620, 3704); plt.ylim(850, 1110); plt.show()
+    # plt.plot(dat_result.wn, dat_result.curve, ':b'); plt.plot(testspec.x, testspec.y, 'o', mfc='none', ms = 4, mec=(0.1, 0.1, 0.1, 0.5)); plt.xlim(1999, 2104); plt.ylim(820, 870); plt.show()

@@ -37,6 +37,7 @@ import matplotlib.pyplot as plt
 plt.style.use('ggplot')
 # import time
 from scipy.integrate import cumulative_trapezoid
+from expspec import *
 
 def generate_the_spectrum(wn=np.linspace(0, 1024, 1025),
                           number_of_peaks=1,
@@ -119,6 +120,73 @@ def generate_the_spectrum(wn=np.linspace(0, 1024, 1025),
 
 
 
+def extend_the_edges(some_spectrum, edgelength = 1/16, subtract=1, display=0):
+    """input: class ExpSpec.
+    we would use 
+        ExpSpec.x
+     and
+        ExpSpec.y
+    edgelength is the length of the edges in terms of the total length of the x-axis.
+        Linear fit uses edgelength also; the FWHM of the weights is edgelength/4
+        """
+
+    el = int(np.floor(len(some_spectrum.x)*edgelength))
+    interpoint_distance = abs((some_spectrum.x[-1]-some_spectrum.x[0]) / (len(some_spectrum.x)-1))
+    
+    damping_exponent = 2/(el*interpoint_distance)
+
+    fwhm_for_weights = interpoint_distance*el/4
+    w_left = np.ones(el) * np.exp(-((some_spectrum.x[0:el]-some_spectrum.x[0])**2*4*np.log(2))/fwhm_for_weights**2)
+    w_right = np.ones(el) * np.exp(-((some_spectrum.x[-el:]-some_spectrum.x[-1])**2*4*np.log(2))/fwhm_for_weights**2)
+    p_left = polyfit((some_spectrum.x[0:el]-some_spectrum.x[0]), some_spectrum.y[0:el], 1, w=w_left)
+    p_right = polyfit((some_spectrum.x[-el:]-some_spectrum.x[-1]), some_spectrum.y[-el:], 1, w=w_right)
+    
+    # calculate the slope and offset for the whole spectrum
+    k = (polyval(0, p_right) - polyval(0, p_left))/(some_spectrum.x[-1]-some_spectrum.x[0])
+    b = polyval(0, p_left) - k*some_spectrum.x[0]
+    p_wholespectrum = deepcopy(p_left)
+    p_wholespectrum[0] = b; p_wholespectrum[1] = k
+    
+    
+    # def construct_extension():
+        # construct extended x-axis:
+    x_extended_boolean = np.concatenate((np.zeros(el), np.ones(len(some_spectrum.x)), np.zeros(el)))
+    additional_interval = np.linspace(0, interpoint_distance*(el-1), el)
+    x_extended_left = additional_interval+(some_spectrum.x[0]-additional_interval[-1]-interpoint_distance)
+    x_extended_right = additional_interval+some_spectrum.x[-1]+interpoint_distance
+
+    y_extended_left = polyval(x_extended_left, p_wholespectrum)
+    y_extended_left += (p_left[1] - p_wholespectrum[1]) * np.exp(damping_exponent * (x_extended_left-some_spectrum.x[0])) * (x_extended_left-some_spectrum.x[0])
+    y_extended_right = polyval(x_extended_right, p_wholespectrum)
+    y_extended_right += (p_right[1] - p_wholespectrum[1]) * np.exp(-damping_exponent * (x_extended_right-some_spectrum.x[-1])) * (x_extended_right-some_spectrum.x[-1])
+    
+    x_extended = np.concatenate((x_extended_left,
+                                 some_spectrum.x,
+                                 x_extended_right))
+
+    y_extended = np.concatenate((y_extended_left,
+                                 some_spectrum.y,
+                                 y_extended_right))
+    if display > 0:
+        print('x axis extension by = ', interpoint_distance*el)
+        print('fwhm_for_weights = ', fwhm_for_weights)
+        print('damping_exponent = ', damping_exponent)
+        plt.plot(some_spectrum.x, some_spectrum.y, 'o', mfc='none', ms = 4, mec=(0.1, 0.1, 0.1, 0.5),
+                 label='generated')
+        plt.plot(x_extended, y_extended,
+                 color='b', label='extended', linewidth=1.5)
+        plt.plot(x_extended, polyval(x_extended, p_wholespectrum), ':k', label='linear baseline')
+        # plt.xlabel('x axis whatever')
+        # plt.ylabel('y axis whatever')
+        plt.legend()
+        plt.show()
+    if subtract:
+        y_extended -= polyval(x_extended, p_wholespectrum)
+
+    return ExpSpec(x_extended, y_extended)
+
+
+
 if __name__ == '__main__':
     
     current_multipeak, current_noise, current_baseline = generate_the_spectrum(number_of_peaks=1,
@@ -129,6 +197,11 @@ if __name__ == '__main__':
     # _ = generate_the_spectrum(number_of_peaks=2, return_order=1)
 #     # and
     # _ = generate_the_spectrum(number_of_peaks=2, return_order=2)
+
+
+
+# # now to add smooth edges (without the peaks) to the edges:
+    _ = extend_the_edges(ExpSpec(current_multipeak.wn, current_multipeak.curve+current_baseline+current_noise), edgelength=1/8, display=1)
 
     
 
